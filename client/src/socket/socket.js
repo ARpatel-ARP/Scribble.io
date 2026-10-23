@@ -1,9 +1,9 @@
-import { io } from 'socket.io-client'
+import { io } from "socket.io-client";
 
 const SERVER_URL =
-  import.meta.env.VITE_SERVER_URL || 'http://localhost:3000'
+  import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
 
-let socket = null
+let socket = null;
 
 export function getSocket() {
   if (!socket) {
@@ -12,26 +12,28 @@ export function getSocket() {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
-      transports: ['websocket'],
-    })
+    });
   }
-  return socket
+
+  return socket;
 }
 
 export function connectSocket() {
-  const s = getSocket()
-  if (!s.connected) {
-    s.connect()
+  const currentSocket = getSocket();
+
+  if (!currentSocket.connected) {
+    currentSocket.connect();
   }
-  return s
+
+  return currentSocket;
 }
 
 export function disconnectSocket() {
   if (socket) {
-    socket.removeAllListeners()
-    socket.disconnect()
-    socket = null
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
   }
 }
 
-export { SERVER_URL }
+export { SERVER_URL };

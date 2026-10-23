@@ -1,5 +1,12 @@
-import { useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
-import './Canvas.css'
+import {
+  useEffect,
+  useRef,
+  useCallback,
+  useImperativeHandle,
+  forwardRef,
+} from 'react';
+
+import './Canvas.css';
 
 const BRUSH_COLORS = [
   '#292D25',
@@ -14,7 +21,7 @@ const BRUSH_COLORS = [
   '#8B5CB5',
   '#D4A23A',
   '#3D8B8B',
-]
+];
 
 const DrawingCanvas = forwardRef(function DrawingCanvas(
   {
@@ -32,220 +39,315 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
   },
   ref,
 ) {
-  const canvasRef = useRef(null)
-  const containerRef = useRef(null)
-  const isDrawingRef = useRef(false)
-  const currentStrokeRef = useRef(null)
-  const strokesRef = useRef([])
-  const ctxRef = useRef(null)
-  const lastPosRef = useRef(null)
+  const canvasRef = useRef(null);
+  const containerRef = useRef(null);
+  const isDrawingRef = useRef(false);
+  const currentStrokeRef = useRef(null);
+  const strokesRef = useRef([]);
+  const remoteStrokesRef = useRef(new Map());
+  const ctxRef = useRef(null);
+  const lastPosRef = useRef(null);
 
   const getCtx = useCallback(() => {
     if (!ctxRef.current && canvasRef.current) {
-      ctxRef.current = canvasRef.current.getContext('2d')
+      ctxRef.current = canvasRef.current.getContext('2d');
     }
-    return ctxRef.current
-  }, [])
 
-  const resizeCanvas = useCallback(() => {
-    const canvas = canvasRef.current
-    const container = containerRef.current
-    if (!canvas || !container) return
+    return ctxRef.current;
+  }, []);
 
-    const rect = container.getBoundingClientRect()
-    const dpr = window.devicePixelRatio || 1
+  const drawStroke = useCallback((ctx, stroke) => {
+    if (!stroke?.points?.length) return;
 
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
-    canvas.style.width = rect.width + 'px'
-    canvas.style.height = rect.height + 'px'
+    ctx.save();
 
-    const ctx = getCtx()
-    if (ctx) {
-      ctx.scale(dpr, dpr)
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
+    ctx.strokeStyle = stroke.color;
+    ctx.fillStyle = stroke.color;
+    ctx.lineWidth = stroke.size;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.globalCompositeOperation =
+      stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
+
+    const points = stroke.points;
+
+    if (points.length === 1) {
+      ctx.beginPath();
+      ctx.arc(
+        points[0].x,
+        points[0].y,
+        stroke.size / 2,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+
+      for (let i = 1; i < points.length; i++) {
+        const midX = (points[i - 1].x + points[i].x) / 2;
+        const midY = (points[i - 1].y + points[i].y) / 2;
+
+        ctx.quadraticCurveTo(
+          points[i - 1].x,
+          points[i - 1].y,
+          midX,
+          midY,
+        );
+      }
+
+      const lastPoint = points[points.length - 1];
+
+      ctx.lineTo(lastPoint.x, lastPoint.y);
+      ctx.stroke();
     }
-    redrawAll()
-  }, [getCtx])
+
+    ctx.restore();
+  }, []);
 
   const redrawAll = useCallback(() => {
-    const canvas = canvasRef.current
-    const ctx = getCtx()
-    if (!canvas || !ctx) return
+    const canvas = canvasRef.current;
+    const ctx = getCtx();
 
-    const dpr = window.devicePixelRatio || 1
-    ctx.save()
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.restore()
-    ctx.scale(dpr, dpr)
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
+    if (!canvas || !ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     strokesRef.current.forEach((stroke) => {
-      drawStroke(ctx, stroke)
-    })
-  }, [getCtx])
+      drawStroke(ctx, stroke);
+    });
 
-  const drawStroke = (ctx, stroke) => {
-    if (!stroke || !stroke.points || stroke.points.length === 0) return
+    remoteStrokesRef.current.forEach((stroke) => {
+      drawStroke(ctx, stroke);
+    });
+  }, [drawStroke, getCtx]);
 
-    ctx.save()
-    ctx.strokeStyle = stroke.color
-    ctx.lineWidth = stroke.size
-    ctx.globalCompositeOperation =
-      stroke.tool === 'eraser' ? 'destination-out' : 'source-over'
+  const resizeCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
 
-    const points = stroke.points
-    if (points.length === 1) {
-      ctx.beginPath()
-      ctx.arc(points[0].x, points[0].y, stroke.size / 2, 0, Math.PI * 2)
-      ctx.fillStyle = stroke.color
-      ctx.fill()
-    } else {
-      ctx.beginPath()
-      ctx.moveTo(points[0].x, points[0].y)
-      for (let i = 1; i < points.length; i++) {
-        const midX = (points[i - 1].x + points[i].x) / 2
-        const midY = (points[i - 1].y + points[i].y) / 2
-        ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, midX, midY)
-      }
-      ctx.stroke()
+    if (!canvas || !container) return;
+
+    const rect = container.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
+
+    const ctx = getCtx();
+
+    if (ctx) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
     }
-    ctx.restore()
-  }
 
-  const getPos = (e) => {
-    const canvas = canvasRef.current
-    if (!canvas) return { x: 0, y: 0 }
-    const rect = canvas.getBoundingClientRect()
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    redrawAll();
+  }, [getCtx, redrawAll]);
+
+  const getPos = useCallback((event) => {
+    const canvas = canvasRef.current;
+
+    if (!canvas) return { x: 0, y: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    const touch = event.touches?.[0] || event.changedTouches?.[0];
+
+    const clientX = touch ? touch.clientX : event.clientX;
+    const clientY = touch ? touch.clientY : event.clientY;
+
     return {
       x: clientX - rect.left,
       y: clientY - rect.top,
-    }
-  }
+    };
+  }, []);
 
   const handleStart = useCallback(
-    (e) => {
-      if (!canDraw) return
-      e.preventDefault()
-      const pos = getPos(e)
-      isDrawingRef.current = true
-      lastPosRef.current = pos
+    (event) => {
+      if (!canDraw) return;
+
+      event.preventDefault();
+
+      const position = getPos(event);
+
+      isDrawingRef.current = true;
+      lastPosRef.current = position;
 
       const stroke = {
+        id: crypto.randomUUID(),
         color: tool === 'eraser' ? '#FAF9F5' : brushColor,
         size: tool === 'eraser' ? brushSize * 2.5 : brushSize,
         tool,
-        points: [pos],
-      }
-      currentStrokeRef.current = stroke
+        points: [position],
+      };
 
-      if (onStrokeStart) onStrokeStart(stroke)
+      currentStrokeRef.current = stroke;
+
+      const ctx = getCtx();
+
+      if (ctx) {
+        drawStroke(ctx, stroke);
+      }
+
+      onStrokeStart?.(stroke);
     },
-    [canDraw, brushColor, brushSize, tool, onStrokeStart],
-  )
+    [
+      canDraw,
+      getPos,
+      tool,
+      brushColor,
+      brushSize,
+      getCtx,
+      drawStroke,
+      onStrokeStart,
+    ],
+  );
 
   const handleMove = useCallback(
-    (e) => {
-      if (!isDrawingRef.current || !canDraw) return
-      e.preventDefault()
-      const pos = getPos(e)
-      const ctx = getCtx()
-      if (!ctx) return
+    (event) => {
+      if (!isDrawingRef.current || !canDraw) return;
 
-      const stroke = currentStrokeRef.current
-      if (!stroke) return
+      event.preventDefault();
 
-      stroke.points.push(pos)
+      const position = getPos(event);
+      const ctx = getCtx();
+      const stroke = currentStrokeRef.current;
 
-      ctx.save()
-      ctx.strokeStyle = stroke.color
-      ctx.lineWidth = stroke.size
+      if (!ctx || !stroke || !lastPosRef.current) return;
+
+      stroke.points.push(position);
+
+      ctx.save();
+
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth = stroke.size;
+
       ctx.globalCompositeOperation =
-        stroke.tool === 'eraser' ? 'destination-out' : 'source-over'
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.beginPath()
-      ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y)
-      const midX = (lastPosRef.current.x + pos.x) / 2
-      const midY = (lastPosRef.current.y + pos.y) / 2
-      ctx.quadraticCurveTo(lastPosRef.current.x, lastPosRef.current.y, midX, midY)
-      ctx.stroke()
-      ctx.restore()
+        stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
 
-      lastPosRef.current = pos
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
 
-      if (onStrokeMove) onStrokeMove(stroke)
+      ctx.beginPath();
+      ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
+
+      const midX = (lastPosRef.current.x + position.x) / 2;
+      const midY = (lastPosRef.current.y + position.y) / 2;
+
+      ctx.quadraticCurveTo(
+        lastPosRef.current.x,
+        lastPosRef.current.y,
+        midX,
+        midY,
+      );
+
+      ctx.stroke();
+      ctx.restore();
+
+      lastPosRef.current = position;
+
+      onStrokeMove?.(stroke);
     },
-    [canDraw, getCtx, onStrokeMove],
-  )
+    [canDraw, getPos, getCtx, onStrokeMove],
+  );
 
   const handleEnd = useCallback(() => {
-    if (!isDrawingRef.current) return
-    isDrawingRef.current = false
+    if (!isDrawingRef.current) return;
 
-    const stroke = currentStrokeRef.current
-    if (stroke && stroke.points.length > 0) {
-      strokesRef.current.push(stroke)
-      if (onStrokeEnd) onStrokeEnd(stroke)
+    isDrawingRef.current = false;
+
+    const stroke = currentStrokeRef.current;
+
+    if (stroke?.points?.length) {
+      strokesRef.current.push(stroke);
+      onStrokeEnd?.(stroke);
     }
-    currentStrokeRef.current = null
-    lastPosRef.current = null
-  }, [onStrokeEnd])
+
+    currentStrokeRef.current = null;
+    lastPosRef.current = null;
+  }, [onStrokeEnd]);
 
   useImperativeHandle(
     ref,
     () => ({
       clear: () => {
-        strokesRef.current = []
-        redrawAll()
+        strokesRef.current = [];
+        remoteStrokesRef.current.clear();
+        redrawAll();
       },
+
       undo: () => {
-        strokesRef.current.pop()
-        redrawAll()
+        strokesRef.current.pop();
+        redrawAll();
       },
+
       getStrokes: () => strokesRef.current,
+
       loadStrokes: (newStrokes) => {
-        strokesRef.current = [...newStrokes]
-        redrawAll()
+        strokesRef.current = [...newStrokes];
+        redrawAll();
       },
     }),
     [redrawAll],
-  )
+  );
 
+  // Initialize and resize the canvas.
   useEffect(() => {
-    resizeCanvas()
-    const handleResize = () => resizeCanvas()
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [resizeCanvas])
+    resizeCanvas();
 
+    window.addEventListener('resize', resizeCanvas);
+
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+    };
+  }, [resizeCanvas]);
+
+  // Clear the canvas when the clear signal changes.
   useEffect(() => {
     if (clearSignal > 0) {
-      strokesRef.current = []
-      redrawAll()
-      if (onCanvasCleared) onCanvasCleared()
-    }
-  }, [clearSignal, redrawAll, onCanvasCleared])
+      strokesRef.current = [];
+      remoteStrokesRef.current.clear();
 
+      redrawAll();
+      onCanvasCleared?.();
+    }
+  }, [clearSignal, redrawAll, onCanvasCleared]);
+
+  // Undo the most recent local stroke when requested.
   useEffect(() => {
     if (undoSignal > 0) {
-      strokesRef.current.pop()
-      redrawAll()
+      strokesRef.current.pop();
+      redrawAll();
     }
-  }, [undoSignal, redrawAll])
+  }, [undoSignal, redrawAll]);
 
+  // Update remote strokes by their unique stroke IDs.
   useEffect(() => {
-    if (remoteStrokes && remoteStrokes.length > 0) {
-      const newStrokes = [...strokesRef.current, ...remoteStrokes]
-      strokesRef.current = newStrokes
-      redrawAll()
-    }
-  }, [remoteStrokes, redrawAll])
+    if (!Array.isArray(remoteStrokes)) return;
+
+    const remoteMap = remoteStrokesRef.current;
+
+    // App supplies the current list of remote strokes.
+    // Rebuilding the map also removes strokes removed by undo or clear.
+    remoteMap.clear();
+
+    remoteStrokes.forEach((stroke) => {
+      if (stroke?.id && stroke?.points) {
+        remoteMap.set(stroke.id, stroke);
+      }
+    });
+
+    redrawAll();
+  }, [remoteStrokes, redrawAll]);
 
   return (
     <div className="canvas-wrapper" ref={containerRef}>
@@ -261,12 +363,13 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
         onTouchEnd={handleEnd}
         style={{ cursor: canDraw ? 'crosshair' : 'default' }}
       />
+
       {!canDraw && (
         <div className="canvas-overlay-badge">Viewing only</div>
       )}
     </div>
-  )
-})
+  );
+});
 
-export default DrawingCanvas
-export { BRUSH_COLORS }
+export default DrawingCanvas;
+export { BRUSH_COLORS };

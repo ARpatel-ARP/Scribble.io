@@ -56,13 +56,40 @@ function App() {
     socketListenersSetup.current = true
 
     // Room events
-    on('player_joined', (data) => {
-      setPlayers(data.players || [])
-    })
+    // Room events
 
-    on('player_left', (data) => {
-      setPlayers(data.players || [])
-    })
+on('room_created', (data) => {
+  setRoom(data.room)
+  setPlayer(data.player)
+  setPlayers(data.players)
+  setIsHost(data.isHost)
+  setView(VIEWS.LOBBY)
+  setError(null)
+  setIsLoading(false)
+})
+
+on('room_joined', (data) => {
+  setRoom(data.room)
+  setPlayer(data.player)
+  setPlayers(data.players)
+  setIsHost(data.isHost)
+  setView(VIEWS.LOBBY)
+  setError(null)
+  setIsLoading(false)
+})
+
+on('room_error', (data) => {
+  setError(data.message)
+  setIsLoading(false)
+})
+
+on('player_joined', (data) => {
+  setPlayers(data.players || [])
+})
+
+on('player_left', (data) => {
+  setPlayers(data.players || [])
+})
 
     on('start_game', (data) => {
       setView(VIEWS.GAME)
@@ -112,27 +139,44 @@ function App() {
     })
 
     // Drawing events
-    on('draw_start', (stroke) => {
-      setRemoteStrokes((prev) => [...prev, stroke])
-    })
 
-    on('draw_move', () => {
-      // Individual move events can be batched by the server
-      // The stroke data comes through draw_data or draw_end
-    })
+// Drawing events
+const upsertRemoteStroke = (stroke, playerId) => {
+  if (!stroke?.id || playerId === player.id) return;
 
-    on('draw_end', (stroke) => {
-      setRemoteStrokes((prev) => [...prev, stroke])
-    })
+  setRemoteStrokes((prev) => {
+    const index = prev.findIndex((item) => item.id === stroke.id);
 
-    on('draw_data', (strokes) => {
-      setRemoteStrokes(strokes)
-    })
+    if (index === -1) {
+      return [...prev, { ...stroke, playerId }];
+    }
 
-    on('canvas_clear', () => {
-      setRemoteStrokes([])
-      // Trigger clear via state — Game component handles this
-    })
+    const updated = [...prev];
+    updated[index] = { ...stroke, playerId };
+
+    return updated;
+  });
+};
+
+on("draw_start", ({ playerId, stroke } = {}) => {
+  upsertRemoteStroke(stroke, playerId);
+});
+
+on("draw_move", ({ playerId, stroke } = {}) => {
+  upsertRemoteStroke(stroke, playerId);
+});
+
+on("draw_end", ({ playerId, stroke } = {}) => {
+  upsertRemoteStroke(stroke, playerId);
+});
+
+on("draw_data", (strokes) => {
+  setRemoteStrokes(Array.isArray(strokes) ? strokes : []);
+});
+
+on("canvas_clear", () => {
+  setRemoteStrokes([]);
+});
 
     // Chat events
     on('chat_message', (msg) => {
@@ -156,45 +200,28 @@ function App() {
 
   // HOME callbacks
   const handleCreateRoom = useCallback(
-    (name) => {
-      setIsLoading(true)
-      setError(null)
-      setupSocketListeners()
-
-      const playerId = `local-${Date.now()}`
-      const newPlayer = { id: playerId, name, isHost: true }
-      setPlayer(newPlayer)
-      setIsHost(true)
-
-      // Emit to server — server will respond with room code
-      emit('create_room', { playerName: name })
-
-      // The server response will set the room code via socket events.
-      // For now, show lobby with a pending state.
-      setIsLoading(false)
-      setView(VIEWS.LOBBY)
-    },
-    [emit, setupSocketListeners],
-  )
+  (name) => {
+    setIsLoading(true);
+    setError(null);
+    setupSocketListeners();
+    emit('create_room', { playerName: name });
+  },
+  [emit, setupSocketListeners]
+);
 
   const handleJoinRoom = useCallback(
-    (name, code) => {
-      setIsLoading(true)
-      setError(null)
-      setupSocketListeners()
+  (name, code) => {
+    setIsLoading(true)
+    setError(null)
+    setupSocketListeners()
 
-      const playerId = `local-${Date.now()}`
-      const newPlayer = { id: playerId, name, isHost: false }
-      setPlayer(newPlayer)
-      setIsHost(false)
-
-      emit('join_room', { playerName: name, roomCode: code })
-
-      setIsLoading(false)
-      setView(VIEWS.LOBBY)
-    },
-    [emit, setupSocketListeners],
-  )
+    emit('join_room', {
+      playerName: name,
+      roomCode: code,
+    })
+  },
+  [emit, setupSocketListeners],
+)
 
   // LOBBY callbacks
   const handleStartGame = useCallback(() => {
@@ -203,15 +230,27 @@ function App() {
     setIsLoading(false)
   }, [emit, room.code])
 
-  const handleLeaveRoom = useCallback(() => {
-    emit('player_left', { roomCode: room.code })
-    setView(VIEWS.HOME)
-    setRoom({ code: '', settings: {} })
-    setPlayers([])
-    setPlayer({ id: '', name: '', isHost: false })
-    setIsHost(false)
-    setError(null)
-  }, [emit, room.code])
+const handleLeaveRoom = useCallback(() => {
+  if (room.code) {
+    emit('leave_room', { roomCode: room.code });
+  }
+
+  setView(VIEWS.HOME);
+  setRoom({ code: '', settings: {} });
+  setPlayers([]);
+  setPlayer({ id: '', name: '', isHost: false });
+  setIsHost(false);
+  setError(null);
+  setGameState('waiting');
+  setCurrentRound(1);
+  setTimeLeft(0);
+  setDrawerId(null);
+  setWordHint('');
+  setWordChoices([]);
+  setChatMessages([]);
+  setRemoteStrokes([]);
+  setFinalScores(null);
+}, [emit, room.code]);
 
   const handleReturnHome = useCallback(() => {
     disconnect()
