@@ -1,0 +1,125 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+    background-color: #faf9f5;
+    color: #292d25;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    line-height: 1.2;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-olive-dark px-6 py-3 text-sm font-semibold text-cream-warm transition-all duration-200 ease-smooth hover:bg-olive-primary hover:shadow-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-olive-primary focus-visible:ring-offset-2 active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-olive-light bg-cream-pure px-6 py-3 text-sm font-semibold text-olive-dark transition-all duration-200 ease-smooth hover:bg-olive-pale hover:border-olive-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-olive-primary focus-visible:ring-offset-2 active:scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-ink-secondary transition-colors duration-200 hover:bg-olive-pale hover:text-olive-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-olive-primary;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-accent-error/40 bg-cream-pure px-4 py-2 text-sm font-medium text-accent-error transition-colors duration-200 hover:bg-accent-error hover:text-cream-pure focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-error;
+  }
+
+  .input-field {
+    @apply w-full rounded-xl border border-olive-light/50 bg-cream-pure px-4 py-3 text-sm text-ink-primary placeholder:text-ink-secondary/60 transition-colors duration-200 focus:border-olive-primary focus:outline-none focus:ring-2 focus:ring-olive-primary/20;
+  }
+
+  .card {
+    @apply rounded-2xl border border-olive-light/40 bg-cream-pure shadow-soft;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #a5ac8a;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #626b4f;
+}
