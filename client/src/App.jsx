@@ -174,8 +174,27 @@ on("draw_data", (strokes) => {
   setRemoteStrokes(Array.isArray(strokes) ? strokes : []);
 });
 
+on("draw_undo", ({ strokeId } = {}) => {
+  if (!strokeId) return;
+
+  // Remove the stroke from the remote stroke collection.
+  setRemoteStrokes((prev) =>
+    prev.filter((stroke) => stroke.id !== strokeId)
+  );
+
+  // Tell every mounted DrawingCanvas to remove this exact stroke.
+  window.dispatchEvent(
+    new CustomEvent("scribble:draw-undo", {
+      detail: { strokeId },
+    })
+  );
+});
+
 on("canvas_clear", () => {
   setRemoteStrokes([]);
+
+  // Clear local and remote strokes
+  window.dispatchEvent(new Event("scribble:canvas-clear"));
 });
 
     // Chat events

@@ -41,10 +41,16 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
 ) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+
   const isDrawingRef = useRef(false);
   const currentStrokeRef = useRef(null);
+
+  // Strokes drawn locally.
   const strokesRef = useRef([]);
+
+  // Strokes received from other players.
   const remoteStrokesRef = useRef(new Map());
+
   const ctxRef = useRef(null);
   const lastPosRef = useRef(null);
 
@@ -53,11 +59,16 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
       ctxRef.current = canvasRef.current.getContext('2d');
     }
 
+
     return ctxRef.current;
+
+
   }, []);
 
+  // Render one complete stroke.
   const drawStroke = useCallback((ctx, stroke) => {
     if (!stroke?.points?.length) return;
+
 
     ctx.save();
 
@@ -72,8 +83,10 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
 
     const points = stroke.points;
 
+    // Draw a dot for a single-point stroke.
     if (points.length === 1) {
       ctx.beginPath();
+
       ctx.arc(
         points[0].x,
         points[0].y,
@@ -81,8 +94,10 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
         0,
         Math.PI * 2,
       );
+
       ctx.fill();
     } else {
+      // Draw a smooth line through the stroke's points.
       ctx.beginPath();
       ctx.moveTo(points[0].x, points[0].y);
 
@@ -105,11 +120,15 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
     }
 
     ctx.restore();
+
+
   }, []);
 
+  // Clear and redraw the complete canvas.
   const redrawAll = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = getCtx();
+
 
     if (!canvas || !ctx) return;
 
@@ -117,20 +136,27 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+    // Draw locally created strokes.
     strokesRef.current.forEach((stroke) => {
       drawStroke(ctx, stroke);
     });
 
+    // Draw strokes received from other players.
     remoteStrokesRef.current.forEach((stroke) => {
       drawStroke(ctx, stroke);
     });
+
+
   }, [drawStroke, getCtx]);
 
+  // Adjust canvas dimensions to its container.
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
+
 
     if (!canvas || !container) return;
 
@@ -152,14 +178,21 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
     }
 
     redrawAll();
+
+
   }, [getCtx, redrawAll]);
 
+  // Convert mouse or touch coordinates into canvas coordinates.
   const getPos = useCallback((event) => {
     const canvas = canvasRef.current;
 
-    if (!canvas) return { x: 0, y: 0 };
+
+    if (!canvas) {
+      return { x: 0, y: 0 };
+    }
 
     const rect = canvas.getBoundingClientRect();
+
     const touch = event.touches?.[0] || event.changedTouches?.[0];
 
     const clientX = touch ? touch.clientX : event.clientX;
@@ -169,11 +202,15 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
       x: clientX - rect.left,
       y: clientY - rect.top,
     };
+
+
   }, []);
 
+  // Begin a new stroke.
   const handleStart = useCallback(
     (event) => {
       if (!canDraw) return;
+
 
       event.preventDefault();
 
@@ -210,11 +247,15 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
       drawStroke,
       onStrokeStart,
     ],
+
+
   );
 
+  // Update an active stroke.
   const handleMove = useCallback(
     (event) => {
       if (!isDrawingRef.current || !canDraw) return;
+
 
       event.preventDefault();
 
@@ -238,6 +279,7 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
       ctx.lineJoin = 'round';
 
       ctx.beginPath();
+
       ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
 
       const midX = (lastPosRef.current.x + position.x) / 2;
@@ -258,10 +300,14 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
       onStrokeMove?.(stroke);
     },
     [canDraw, getPos, getCtx, onStrokeMove],
+
+
   );
 
+  // Finish the active stroke.
   const handleEnd = useCallback(() => {
     if (!isDrawingRef.current) return;
+
 
     isDrawingRef.current = false;
 
@@ -274,21 +320,29 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
 
     currentStrokeRef.current = null;
     lastPosRef.current = null;
+
+
   }, [onStrokeEnd]);
 
+  // Expose canvas operations to parent components.
   useImperativeHandle(
     ref,
     () => ({
       clear: () => {
         strokesRef.current = [];
         remoteStrokesRef.current.clear();
+
+
+        currentStrokeRef.current = null;
+        isDrawingRef.current = false;
+        lastPosRef.current = null;
+
         redrawAll();
       },
 
-      undo: () => {
-        strokesRef.current.pop();
-        redrawAll();
-      },
+      // Undo is synchronized through the server.
+      // Do not independently pop a local stroke here.
+      undo: () => { },
 
       getStrokes: () => strokesRef.current,
 
@@ -298,78 +352,144 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
       },
     }),
     [redrawAll],
+
+
   );
 
   // Initialize and resize the canvas.
   useEffect(() => {
     resizeCanvas();
 
+
     window.addEventListener('resize', resizeCanvas);
 
     return () => {
       window.removeEventListener('resize', resizeCanvas);
     };
+
+
   }, [resizeCanvas]);
 
-  // Clear the canvas when the clear signal changes.
+  // Apply a local clear request.
   useEffect(() => {
-    if (clearSignal > 0) {
+    if (clearSignal <= 0) return;
+
+
+    strokesRef.current = [];
+    remoteStrokesRef.current.clear();
+
+    currentStrokeRef.current = null;
+    isDrawingRef.current = false;
+    lastPosRef.current = null;
+
+    redrawAll();
+
+    // Notify the parent so it can broadcast the clear to the server.
+    onCanvasCleared?.();
+
+
+  }, [clearSignal, redrawAll, onCanvasCleared]);
+
+  // Undo requests are handled by the server.
+  // This effect intentionally does not pop a local stroke.
+  useEffect(() => {
+    if (undoSignal <= 0) return;
+
+
+    // The server's draw_undo event identifies the stroke to remove.
+
+
+  }, [undoSignal]);
+
+  // Apply server-authoritative undo and clear events.
+  useEffect(() => {
+    const handleUndo = (event) => {
+      const { strokeId } = event.detail || {};
+
+
+      if (!strokeId) return;
+
+      strokesRef.current = strokesRef.current.filter(
+        (stroke) => stroke.id !== strokeId,
+      );
+
+      remoteStrokesRef.current.delete(strokeId);
+
+      if (currentStrokeRef.current?.id === strokeId) {
+        currentStrokeRef.current = null;
+        isDrawingRef.current = false;
+        lastPosRef.current = null;
+      }
+
+      redrawAll();
+    };
+
+    const handleClear = () => {
       strokesRef.current = [];
       remoteStrokesRef.current.clear();
 
-      redrawAll();
-      onCanvasCleared?.();
-    }
-  }, [clearSignal, redrawAll, onCanvasCleared]);
+      currentStrokeRef.current = null;
+      isDrawingRef.current = false;
+      lastPosRef.current = null;
 
-  // Undo the most recent local stroke when requested.
-  useEffect(() => {
-    if (undoSignal > 0) {
-      strokesRef.current.pop();
       redrawAll();
-    }
-  }, [undoSignal, redrawAll]);
+    };
 
-  // Update remote strokes by their unique stroke IDs.
+    window.addEventListener('scribble:draw-undo', handleUndo);
+    window.addEventListener('scribble:canvas-clear', handleClear);
+
+    return () => {
+      window.removeEventListener('scribble:draw-undo', handleUndo);
+      window.removeEventListener('scribble:canvas-clear', handleClear);
+    };
+
+
+  }, [redrawAll]);
+
+  // Synchronize the remote strokes received from App.jsx.
   useEffect(() => {
     if (!Array.isArray(remoteStrokes)) return;
 
+
     const remoteMap = remoteStrokesRef.current;
 
-    // App supplies the current list of remote strokes.
-    // Rebuilding the map also removes strokes removed by undo or clear.
     remoteMap.clear();
 
     remoteStrokes.forEach((stroke) => {
-      if (stroke?.id && stroke?.points) {
+      if (stroke?.id && Array.isArray(stroke.points)) {
         remoteMap.set(stroke.id, stroke);
       }
     });
 
     redrawAll();
+
+
   }, [remoteStrokes, redrawAll]);
 
-  return (
-    <div className="canvas-wrapper" ref={containerRef}>
-      <canvas
-        ref={canvasRef}
-        className="drawing-canvas"
-        onMouseDown={handleStart}
-        onMouseMove={handleMove}
-        onMouseUp={handleEnd}
-        onMouseLeave={handleEnd}
-        onTouchStart={handleStart}
-        onTouchMove={handleMove}
-        onTouchEnd={handleEnd}
-        style={{ cursor: canDraw ? 'crosshair' : 'default' }}
-      />
+  return (<div className="canvas-wrapper" ref={containerRef}>
+    <canvas
+      ref={canvasRef}
+      className="drawing-canvas"
+      onMouseDown={handleStart}
+      onMouseMove={handleMove}
+      onMouseUp={handleEnd}
+      onMouseLeave={handleEnd}
+      onTouchStart={handleStart}
+      onTouchMove={handleMove}
+      onTouchEnd={handleEnd}
+      style={{ cursor: canDraw ? 'crosshair' : 'default' }}
+    />
 
-      {!canDraw && (
-        <div className="canvas-overlay-badge">Viewing only</div>
-      )}
-    </div>
+
+    {!canDraw && (
+      <div className="canvas-overlay-badge">Viewing only</div>
+    )}
+  </div>
+
+
   );
 });
 
 export default DrawingCanvas;
+
 export { BRUSH_COLORS };
