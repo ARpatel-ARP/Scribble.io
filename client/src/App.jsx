@@ -63,6 +63,8 @@ function App() {
     on('room_created', (data) => {
       setRoom(data.room)
       setPlayer(data.player)
+      sessionStorage.setItem('scribble_room', data.room.code)
+      sessionStorage.setItem('scribble_player', JSON.stringify(data.player))
       setPlayers(data.players)
       setIsHost(data.isHost)
       setView(VIEWS.LOBBY)
@@ -70,49 +72,51 @@ function App() {
       setIsLoading(false)
     })
 
-on('play_again', (data) => {
-  setRoom(data.room)
-  setPlayers(data.players || [])
-  setGameState('waiting')
-  setCurrentRound(0)
-  setTimeLeft(0)
-  setDrawerId(null)
-  setWordHint('')
-  setWordChoices([])
-  setFinalScores(null)
-  setChatMessages([])
-  setRemoteStrokes([])
-  setClearSignal((previous) => previous + 1)
-  setError(null)
-  setView(VIEWS.LOBBY)
-})
+    on('play_again', (data) => {
+      setRoom(data.room)
+      setPlayers(data.players || [])
+      setGameState('waiting')
+      setCurrentRound(0)
+      setTimeLeft(0)
+      setDrawerId(null)
+      setWordHint('')
+      setWordChoices([])
+      setFinalScores(null)
+      setChatMessages([])
+      setRemoteStrokes([])
+      setClearSignal((previous) => previous + 1)
+      setError(null)
+      setView(VIEWS.LOBBY)
+    })
 
-   on('room_joined', (data) => {
-  setRoom(data.room)
-  setPlayer(data.player)
-  setPlayers(data.players)
-  setIsHost(data.isHost)
-  setError(null)
-  setIsLoading(false)
+    on('room_joined', (data) => {
+      setRoom(data.room)
+      setPlayer(data.player)
+      sessionStorage.setItem('scribble_room', data.room.code)
+      sessionStorage.setItem('scribble_player', JSON.stringify(data.player))
+      setPlayers(data.players)
+      setIsHost(data.isHost)
+      setError(null)
+      setIsLoading(false)
 
-  const gameState = data.gameState
+      const gameState = data.gameState
 
-  if (gameState && gameState.state !== 'waiting') {
-    setGameState(gameState.state)
+      if (gameState && gameState.state !== 'waiting') {
+        setGameState(gameState.state)
 
-    if (gameState.currentRound != null) {
-      setCurrentRound(gameState.currentRound)
-    }
+        if (gameState.currentRound != null) {
+          setCurrentRound(gameState.currentRound)
+        }
 
-    if (gameState.totalRounds != null) {
-      setTotalRounds(gameState.totalRounds)
-    }
+        if (gameState.totalRounds != null) {
+          setTotalRounds(gameState.totalRounds)
+        }
 
-    setView(VIEWS.GAME)
-  } else {
-    setView(VIEWS.LOBBY)
-  }
-})
+        setView(VIEWS.GAME)
+      } else {
+        setView(VIEWS.LOBBY)
+      }
+    })
     on('room_error', (data) => {
       setError(data.message)
       setIsLoading(false)
@@ -169,6 +173,10 @@ on('play_again', (data) => {
       setTimeLeft(data.timeLeft || 0)
     })
 
+    on('word_hint_updated', (data) => {
+      console.log('[FRONTEND HINT RECEIVED]', data)
+      setWordHint(data.wordHint || '')
+    })
 
     on('round_end', (data) => {
       console.log('ROUND END RECEIVED:', data);
@@ -382,22 +390,22 @@ on('play_again', (data) => {
   }, [])
 
 
-const handleUpdateSettings = useCallback(
-  (newSettings) => {
-    // Update the UI immediately so the selected option highlights.
-    setRoom((prev) => ({
-      ...prev,
-      settings: newSettings,
-    }));
+  const handleUpdateSettings = useCallback(
+    (newSettings) => {
+      // Update the UI immediately so the selected option highlights.
+      setRoom((prev) => ({
+        ...prev,
+        settings: newSettings,
+      }));
 
-    // Send the updated settings to the server.
-    emit('update_settings', {
-      roomCode: room.code,
-      settings: newSettings,
-    });
-  },
-  [emit, room.code],
-)
+      // Send the updated settings to the server.
+      emit('update_settings', {
+        roomCode: room.code,
+        settings: newSettings,
+      });
+    },
+    [emit, room.code],
+  )
 
 
 
@@ -463,14 +471,14 @@ const handleUpdateSettings = useCallback(
 
 
 
-const handlePlayAgain = useCallback(() => {
-  if (!isHost) {
-    setError('Only the host can restart the game.')
-    return
-  }
+  const handlePlayAgain = useCallback(() => {
+    if (!isHost) {
+      setError('Only the host can restart the game.')
+      return
+    }
 
-  emit('play_again', { roomCode: room.code })
-}, [emit, isHost, room.code])
+    emit('play_again', { roomCode: room.code })
+  }, [emit, isHost, room.code])
 
 
 

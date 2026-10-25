@@ -132,7 +132,7 @@ function Game({
       return (
         <div className="game-word-display game-word-guesser">
           <span className="game-word-hint-letters">
-            {'_ '.repeat(6).trim()}
+            {wordHint || 'Waiting for hint...'}
           </span>
         </div>
       )
