@@ -373,7 +373,7 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
   // Apply a local clear request.
   useEffect(() => {
     if (clearSignal <= 0) return;
-
+     console.log('CANVAS CLEAR SIGNAL RECEIVED:', clearSignal);
 
     strokesRef.current = [];
     remoteStrokesRef.current.clear();

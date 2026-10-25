@@ -41,6 +41,9 @@ export default function useSocket() {
 
   const emit = useCallback(
     (event, data) => {
+       console.log("[Socket emit]", event, data);
+    console.log("[Socket connected]", socket.connected);
+    
       socket.emit(event, data)
     },
     [socket],

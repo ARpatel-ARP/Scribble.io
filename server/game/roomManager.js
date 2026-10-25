@@ -31,6 +31,7 @@ function createRoom(socketId, playerName) {
   const room = {
     code: roomCode,
     hostId: socketId,
+    wordSelectionTimer: null,
     players: [player],
     settings: {
       rounds: 3,

@@ -10,9 +10,7 @@ import {
   WifiOff,
   LogOut,
   Home as HomeIcon,
-  Check,
   Loader2,
-  AlertCircle,
   Trophy,
 } from 'lucide-react'
 import DrawingCanvas, { BRUSH_COLORS } from '../Canvas/DrawingCanvas.jsx'
@@ -33,6 +31,7 @@ function Game({
   wordChoices = [],
   chatMessages = [],
   remoteStrokes = [],
+  clearSignal = 0,
   isConnected = false,
   onWordChosen,
   onGuess,
@@ -50,7 +49,6 @@ function Game({
   const [tool, setTool] = useState('pen')
   const [brushColor, setBrushColor] = useState('#292D25')
   const [brushSize, setBrushSize] = useState(4)
-  const [clearSignal, setClearSignal] = useState(0)
   const [undoSignal, setUndoSignal] = useState(0)
 
   const canvasRef = useRef(null)
@@ -61,7 +59,6 @@ function Game({
   const drawerName = drawer ? drawer.name : 'Unknown'
 
   const handleClear = () => {
-    setClearSignal((s) => s + 1)
     if (onCanvasCleared) onCanvasCleared()
   }
 
@@ -131,15 +128,12 @@ function Game({
           </div>
         )
       }
+
       return (
         <div className="game-word-display game-word-guesser">
-          {wordHint ? (
-            <span className="game-word-hint-text">{wordHint}</span>
-          ) : (
-            <span className="game-word-hint-letters">
-              {'_ '.repeat(wordHint.length || 6).trim()}
-            </span>
-          )}
+          <span className="game-word-hint-letters">
+            {'_ '.repeat(6).trim()}
+          </span>
         </div>
       )
     }
@@ -161,9 +155,11 @@ function Game({
       case 'waiting':
         return 'Waiting for round to begin...'
       case 'selecting':
-        return isDrawer ? 'Choose your word' : `${drawerName} is choosing a word`
+        return isDrawer
+          ? 'Choose your word'
+          : `${drawerName} is choosing a word`
       case 'drawing':
-        return isDrawer ? 'Your turn to draw' : `Guess the word`
+        return isDrawer ? 'Your turn to draw' : 'Guess the word'
       case 'guessing':
         return isDrawer ? 'Keep drawing!' : 'Guess the word'
       case 'correct':
@@ -181,7 +177,6 @@ function Game({
     }
   }
 
-  // RESULTS VIEW
   if (gameState === 'game_over' && finalScores) {
     const sorted = [...finalScores].sort((a, b) => b.score - a.score)
     const winner = sorted[0]
@@ -212,7 +207,11 @@ function Game({
               <div className="game-podium-rank">#{i + 1}</div>
               <div className="game-podium-name">{p.name}</div>
               <div className="game-podium-score">{p.score} pts</div>
-              {i === 0 && <div className="game-podium-crown"><Trophy size={20} /></div>}
+              {i === 0 && (
+                <div className="game-podium-crown">
+                  <Trophy size={20} />
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -239,7 +238,6 @@ function Game({
     )
   }
 
-  // RECONNECTING / CONNECTION LOST
   if (gameState === 'reconnecting' || gameState === 'connection_lost') {
     return (
       <div className="game-page game-connection-lost">
@@ -287,9 +285,14 @@ function Game({
             <Clock size={16} />
             <span>{formatTime(timeLeft)}</span>
           </div>
-          <div className="game-status-label">
-            {getStatusLabel()}
-          </div>
+
+          {timeLeft > 0 && timeLeft <= 10 && gameState === 'drawing' && (
+            <div className="timer-warning">
+              Only {timeLeft} seconds left!
+            </div>
+          )}
+
+          <div className="game-status-label">{getStatusLabel()}</div>
         </div>
 
         <div className="game-header-right">
@@ -306,7 +309,6 @@ function Game({
       {renderWordDisplay()}
 
       <div className="game-layout">
-        {/* LEFT COLUMN — LEADERBOARD */}
         <aside className="game-col game-col-left">
           <Leaderboard
             players={players}
@@ -316,7 +318,6 @@ function Game({
           />
         </aside>
 
-        {/* CENTER COLUMN — CANVAS + TOOLBAR */}
         <main className="game-col game-col-center">
           <div className="game-canvas-container">
             <DrawingCanvas
@@ -389,10 +390,7 @@ function Game({
                     title={`${size}px brush`}
                     aria-label={`Select brush size ${size}`}
                   >
-                    <Circle
-                      size={Math.min(size + 4, 18)}
-                      fill="currentColor"
-                    />
+                    <Circle size={Math.min(size + 4, 18)} fill="currentColor" />
                   </button>
                 ))}
               </div>
@@ -429,23 +427,14 @@ function Game({
           )}
         </main>
 
-        {/* RIGHT COLUMN — CHAT */}
         <aside className="game-col game-col-right">
           <Chat
             messages={chatMessages}
             onSendMessage={(text) => {
-              if (isDrawer) {
-                if (onChatMessage) onChatMessage(text)
-              } else {
-                if (onGuess) onGuess(text)
-              }
+              if (onChatMessage) onChatMessage(text)
             }}
-            disabled={isDrawer && gameState === 'drawing'}
-            placeholder={
-              isDrawer
-                ? 'You can chat between rounds...'
-                : 'Type your guess and press Enter'
-            }
+            disabled={false}
+            placeholder="Type a message or guess..."
             currentUserId={player.id}
           />
         </aside>
@@ -455,3 +444,4 @@ function Game({
 }
 
 export default Game
+

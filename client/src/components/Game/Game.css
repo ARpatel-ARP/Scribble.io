@@ -78,6 +78,22 @@
   animation: pulse-soft 1s ease-in-out infinite;
 }
 
+.timer-warning {
+  color: #e05252;
+  font-size: 12px;
+  font-weight: 700;
+  animation: warning-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes warning-pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .game-status-label {
   font-size: 14px;
   font-weight: 600;

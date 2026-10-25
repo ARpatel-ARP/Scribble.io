@@ -2,9 +2,11 @@ import "dotenv/config";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import app from "./app.js";
-import registerRoomHandlers from "./sockets/roomHandler.js";
-import { removePlayerFromRoom } from "./game/roomManager.js";
+import registerRoomHandlers, { endRoundEarly } from "./sockets/roomHandler.js";
+import { getRoom, 
+  removePlayerFromRoom } from "./game/roomManager.js";
 import registerDrawingHandlers from "./sockets/drawingHandlers.js";
+import registerChatHandlers from "./sockets/chatHandler.js";
 
 const PORT = process.env.PORT || 5000;
 
@@ -22,43 +24,84 @@ io.on("connection", (socket) => {
 
   registerRoomHandlers(io, socket);
   registerDrawingHandlers(io, socket);
+  registerChatHandlers(io, socket);
 
-  socket.on("disconnect", () => {
-    console.log(`Player disconnected: ${socket.id}`);
+ socket.on("disconnect", () => {
+console.log(`Player disconnected: ${socket.id}`);
 
-    const roomCode = socket.data.roomCode;
+const roomCode = socket.data.roomCode;
 
-    if (!roomCode) {
-      return;
-    }
+if (!roomCode) {
+return;
+}
 
-    const result = removePlayerFromRoom(roomCode, socket.id);
+// Get the room before removing the player.
+const existingRoom = getRoom(roomCode);
 
-    if (!result) {
-      return;
-    }
+if (!existingRoom) {
+return;
+}
 
-    if (result.deleted) {
-      io.to(roomCode).emit("room_deleted", {
-        message: "The room has been closed.",
-      });
+// Check whether the disconnected player is the active drawer.
+const wasDrawer =
+existingRoom.state === "drawing" &&
+existingRoom.drawerId === socket.id;
 
-      return;
-    }
+const result = removePlayerFromRoom(roomCode, socket.id);
 
-    const publicPlayers = result.room.players.map((player) => ({
-      id: player.id,
-      name: player.name,
-      score: player.score,
-      isHost: player.isHost,
-      isReady: player.isReady,
-    }));
+if (!result) {
+return;
+}
 
-    io.to(roomCode).emit("player_left", {
-      players: publicPlayers,
-      hostId: result.room.hostId,
-    });
-  });
+if (result.deleted) {
+io.to(roomCode).emit("room_deleted", {
+message: "The room has been closed.",
+});
+
+return;
+
+}
+
+const room = result.room;
+
+const publicPlayers = room.players.map((player) => ({
+id: player.id,
+name: player.name,
+score: player.score,
+isHost: player.isHost,
+isReady: player.isReady,
+}));
+
+io.to(roomCode).emit("player_left", {
+players: publicPlayers,
+hostId: room.hostId,
+});
+
+// Only check round-ending conditions during an active drawing round.
+if (room.state === "drawing") {
+const eligibleGuessers = room.players.filter(
+(player) => player.id !== room.drawerId
+);
+
+
+const remainingGuessers = eligibleGuessers.filter(
+  (player) =>
+    !(room.correctGuessers || []).includes(player.id)
+);
+
+if (wasDrawer) {
+  endRoundEarly(io, room, "The drawer disconnected!");
+} else if (remainingGuessers.length === 0) {
+  endRoundEarly(
+    io,
+    room,
+    "No players left to guess the word!"
+  );
+}
+
+}
+});
+
 });
 
 httpServer.listen(PORT, () => {

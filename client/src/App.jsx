@@ -40,12 +40,14 @@ function App() {
   const [currentRound, setCurrentRound] = useState(0)
   const [totalRounds, setTotalRounds] = useState(3)
   const [timeLeft, setTimeLeft] = useState(0)
+  const [timerWarning, setTimerWarning] = useState('');
   const [drawerId, setDrawerId] = useState(null)
   const [wordHint, setWordHint] = useState('')
   const [wordChoices, setWordChoices] = useState([])
   const [chatMessages, setChatMessages] = useState([])
   const [remoteStrokes, setRemoteStrokes] = useState([])
   const [finalScores, setFinalScores] = useState(null)
+  const [clearSignal, setClearSignal] = useState(0);
 
   const { isConnected, emit, on, off, disconnect } = useSocket()
   const socketListenersSetup = useRef(false)
@@ -58,38 +60,71 @@ function App() {
     // Room events
     // Room events
 
-on('room_created', (data) => {
+    on('room_created', (data) => {
+      setRoom(data.room)
+      setPlayer(data.player)
+      setPlayers(data.players)
+      setIsHost(data.isHost)
+      setView(VIEWS.LOBBY)
+      setError(null)
+      setIsLoading(false)
+    })
+
+on('play_again', (data) => {
+  setRoom(data.room)
+  setPlayers(data.players || [])
+  setGameState('waiting')
+  setCurrentRound(0)
+  setTimeLeft(0)
+  setDrawerId(null)
+  setWordHint('')
+  setWordChoices([])
+  setFinalScores(null)
+  setChatMessages([])
+  setRemoteStrokes([])
+  setClearSignal((previous) => previous + 1)
+  setError(null)
+  setView(VIEWS.LOBBY)
+})
+
+   on('room_joined', (data) => {
   setRoom(data.room)
   setPlayer(data.player)
   setPlayers(data.players)
   setIsHost(data.isHost)
-  setView(VIEWS.LOBBY)
   setError(null)
   setIsLoading(false)
-})
 
-on('room_joined', (data) => {
-  setRoom(data.room)
-  setPlayer(data.player)
-  setPlayers(data.players)
-  setIsHost(data.isHost)
-  setView(VIEWS.LOBBY)
-  setError(null)
-  setIsLoading(false)
-})
+  const gameState = data.gameState
 
-on('room_error', (data) => {
-  setError(data.message)
-  setIsLoading(false)
-})
+  if (gameState && gameState.state !== 'waiting') {
+    setGameState(gameState.state)
 
-on('player_joined', (data) => {
-  setPlayers(data.players || [])
-})
+    if (gameState.currentRound != null) {
+      setCurrentRound(gameState.currentRound)
+    }
 
-on('player_left', (data) => {
-  setPlayers(data.players || [])
+    if (gameState.totalRounds != null) {
+      setTotalRounds(gameState.totalRounds)
+    }
+
+    setView(VIEWS.GAME)
+  } else {
+    setView(VIEWS.LOBBY)
+  }
 })
+    on('room_error', (data) => {
+      setError(data.message)
+      setIsLoading(false)
+    })
+
+    on('player_joined', (data) => {
+      setPlayers(data.players || [])
+    })
+
+    on('player_left', (data) => {
+      setPlayers(data.players || [])
+    })
 
     on('start_game', (data) => {
       setView(VIEWS.GAME)
@@ -99,9 +134,15 @@ on('player_left', (data) => {
       setDrawerId(data.drawerId || null)
     })
 
+    on("word_choices", ({ wordChoices = [] } = {}) => {
+      console.log("Received word choices:", wordChoices);
+      setWordChoices(wordChoices);
+    });
+
     // Game events
     on('game_state', (data) => {
       setGameState(data.state || 'waiting')
+      if (data.state === 'selecting') { setRemoteStrokes([]); setClearSignal((previous) => previous + 1); }
       if (data.currentRound !== undefined) setCurrentRound(data.currentRound)
       if (data.totalRounds !== undefined) setTotalRounds(data.totalRounds)
       if (data.timeLeft !== undefined) setTimeLeft(data.timeLeft)
@@ -109,6 +150,7 @@ on('player_left', (data) => {
       if (data.wordHint !== undefined) setWordHint(data.wordHint)
       if (data.wordChoices !== undefined) setWordChoices(data.wordChoices)
       if (data.players !== undefined) setPlayers(data.players)
+      if (data.state === 'selecting' || data.state === 'drawing') { setTimerWarning(''); }
     })
 
     on('round_start', (data) => {
@@ -127,79 +169,101 @@ on('player_left', (data) => {
       setTimeLeft(data.timeLeft || 0)
     })
 
+
     on('round_end', (data) => {
-      setGameState('round_end')
-      setWordHint(data.word || '')
-      if (data.players) setPlayers(data.players)
-    })
+      console.log('ROUND END RECEIVED:', data);
+      setGameState('round_end');
+      setWordHint(data.word || '');
+
+      // Clear the canvas and its stored strokes.
+      setRemoteStrokes([]);
+      setClearSignal((previous) => previous + 1);
+
+      if (data.players) setPlayers(data.players);
+    });
+
 
     on('game_over', (data) => {
       setGameState('game_over')
       setFinalScores(data.scores || data.players || [])
     })
 
+    on("word_selected", (data) => {
+      setWordHint(data.word);
+    });
+
     // Drawing events
+    const upsertRemoteStroke = (stroke, playerId) => {
+      if (!stroke?.id || playerId === player.id) return;
 
-// Drawing events
-const upsertRemoteStroke = (stroke, playerId) => {
-  if (!stroke?.id || playerId === player.id) return;
+      setRemoteStrokes((prev) => {
+        const index = prev.findIndex((item) => item.id === stroke.id);
 
-  setRemoteStrokes((prev) => {
-    const index = prev.findIndex((item) => item.id === stroke.id);
+        if (index === -1) {
+          return [...prev, { ...stroke, playerId }];
+        }
 
-    if (index === -1) {
-      return [...prev, { ...stroke, playerId }];
-    }
+        const updated = [...prev];
+        updated[index] = { ...stroke, playerId };
 
-    const updated = [...prev];
-    updated[index] = { ...stroke, playerId };
+        return updated;
+      });
+    };
 
-    return updated;
-  });
-};
+    on("draw_start", ({ playerId, stroke } = {}) => {
+      upsertRemoteStroke(stroke, playerId);
+    });
 
-on("draw_start", ({ playerId, stroke } = {}) => {
-  upsertRemoteStroke(stroke, playerId);
-});
+    on("draw_move", ({ playerId, stroke } = {}) => {
+      upsertRemoteStroke(stroke, playerId);
+    });
 
-on("draw_move", ({ playerId, stroke } = {}) => {
-  upsertRemoteStroke(stroke, playerId);
-});
+    on("draw_end", ({ playerId, stroke } = {}) => {
+      upsertRemoteStroke(stroke, playerId);
+    });
 
-on("draw_end", ({ playerId, stroke } = {}) => {
-  upsertRemoteStroke(stroke, playerId);
-});
+    on("draw_data", (strokes) => {
+      setRemoteStrokes(Array.isArray(strokes) ? strokes : []);
+    });
 
-on("draw_data", (strokes) => {
-  setRemoteStrokes(Array.isArray(strokes) ? strokes : []);
-});
+    on("draw_undo", ({ strokeId } = {}) => {
+      if (!strokeId) return;
 
-on("draw_undo", ({ strokeId } = {}) => {
-  if (!strokeId) return;
+      // Remove the stroke from the remote stroke collection.
+      setRemoteStrokes((prev) =>
+        prev.filter((stroke) => stroke.id !== strokeId)
+      );
 
-  // Remove the stroke from the remote stroke collection.
-  setRemoteStrokes((prev) =>
-    prev.filter((stroke) => stroke.id !== strokeId)
-  );
+      // Tell every mounted DrawingCanvas to remove this exact stroke.
+      window.dispatchEvent(
+        new CustomEvent("scribble:draw-undo", {
+          detail: { strokeId },
+        })
+      );
+    });
 
-  // Tell every mounted DrawingCanvas to remove this exact stroke.
-  window.dispatchEvent(
-    new CustomEvent("scribble:draw-undo", {
-      detail: { strokeId },
-    })
-  );
-});
+    on("canvas_clear", () => {
+      setRemoteStrokes([]);
 
-on("canvas_clear", () => {
-  setRemoteStrokes([]);
+      // Clear local and remote strokes
+      window.dispatchEvent(new Event("scribble:canvas-clear"));
+    });
 
-  // Clear local and remote strokes
-  window.dispatchEvent(new Event("scribble:canvas-clear"));
-});
+    // timer warning
+    on('timer_warning', (data) => {
+      setTimerWarning(data.message || 'Only 10 seconds left!');
+    });
 
     // Chat events
     on('chat_message', (msg) => {
-      setChatMessages((prev) => [...prev, msg])
+      setChatMessages((prev) => {
+        // Prevent duplicate messages.
+        if (prev.some((existing) => existing.id === msg.id)) {
+          return prev
+        }
+
+        return [...prev, msg]
+      })
     })
 
     on('guess_result', (data) => {
@@ -215,32 +279,50 @@ on("canvas_clear", () => {
       ])
       if (data.players) setPlayers(data.players)
     })
+
+    on("correct_guess", (data) => {
+      setPlayers(data.players);
+
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `correct-${Date.now()}`,
+          type: "correct",
+          text: data.message,
+          playerName: "Game",
+          userId: null,
+        },
+      ]);
+    });
+
   }, [on, currentRound])
+
+
 
   // HOME callbacks
   const handleCreateRoom = useCallback(
-  (name) => {
-    setIsLoading(true);
-    setError(null);
-    setupSocketListeners();
-    emit('create_room', { playerName: name });
-  },
-  [emit, setupSocketListeners]
-);
+    (name) => {
+      setIsLoading(true);
+      setError(null);
+      setupSocketListeners();
+      emit('create_room', { playerName: name });
+    },
+    [emit, setupSocketListeners]
+  );
 
   const handleJoinRoom = useCallback(
-  (name, code) => {
-    setIsLoading(true)
-    setError(null)
-    setupSocketListeners()
+    (name, code) => {
+      setIsLoading(true)
+      setError(null)
+      setupSocketListeners()
 
-    emit('join_room', {
-      playerName: name,
-      roomCode: code,
-    })
-  },
-  [emit, setupSocketListeners],
-)
+      emit('join_room', {
+        playerName: name,
+        roomCode: code,
+      })
+    },
+    [emit, setupSocketListeners],
+  )
 
   // LOBBY callbacks
   const handleStartGame = useCallback(() => {
@@ -249,27 +331,27 @@ on("canvas_clear", () => {
     setIsLoading(false)
   }, [emit, room.code])
 
-const handleLeaveRoom = useCallback(() => {
-  if (room.code) {
-    emit('leave_room', { roomCode: room.code });
-  }
+  const handleLeaveRoom = useCallback(() => {
+    if (room.code) {
+      emit('leave_room', { roomCode: room.code });
+    }
 
-  setView(VIEWS.HOME);
-  setRoom({ code: '', settings: {} });
-  setPlayers([]);
-  setPlayer({ id: '', name: '', isHost: false });
-  setIsHost(false);
-  setError(null);
-  setGameState('waiting');
-  setCurrentRound(1);
-  setTimeLeft(0);
-  setDrawerId(null);
-  setWordHint('');
-  setWordChoices([]);
-  setChatMessages([]);
-  setRemoteStrokes([]);
-  setFinalScores(null);
-}, [emit, room.code]);
+    setView(VIEWS.HOME);
+    setRoom({ code: '', settings: {} });
+    setPlayers([]);
+    setPlayer({ id: '', name: '', isHost: false });
+    setIsHost(false);
+    setError(null);
+    setGameState('waiting');
+    setCurrentRound(1);
+    setTimeLeft(0);
+    setDrawerId(null);
+    setWordHint('');
+    setWordChoices([]);
+    setChatMessages([]);
+    setRemoteStrokes([]);
+    setFinalScores(null);
+  }, [emit, room.code]);
 
   const handleReturnHome = useCallback(() => {
     disconnect()
@@ -299,14 +381,25 @@ const handleLeaveRoom = useCallback(() => {
     }
   }, [])
 
-  const handleUpdateSettings = useCallback(
-    (newSettings) => {
-      setRoom((prev) => ({ ...prev, settings: newSettings }))
-      // Server will validate and broadcast settings
-      // emit('update_settings', { roomCode: room.code, settings: newSettings })
-    },
-    [],
-  )
+
+const handleUpdateSettings = useCallback(
+  (newSettings) => {
+    // Update the UI immediately so the selected option highlights.
+    setRoom((prev) => ({
+      ...prev,
+      settings: newSettings,
+    }));
+
+    // Send the updated settings to the server.
+    emit('update_settings', {
+      roomCode: room.code,
+      settings: newSettings,
+    });
+  },
+  [emit, room.code],
+)
+
+
 
   // GAME callbacks
   const handleWordChosen = useCallback(
@@ -336,22 +429,7 @@ const handleLeaveRoom = useCallback(() => {
     [emit, room.code, player],
   )
 
-  const handleChatMessage = useCallback(
-    (text) => {
-      emit('chat', { roomCode: room.code, message: text })
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: `local-${Date.now()}`,
-          type: 'general',
-          text,
-          playerName: player.name,
-          userId: player.id,
-        },
-      ])
-    },
-    [emit, room.code, player],
-  )
+  const handleChatMessage = useCallback((text) => { emit('chat', { roomCode: room.code, message: text, }) }, [emit, room.code],)
 
   // Drawing callbacks
   const handleStrokeStart = useCallback(
@@ -383,13 +461,19 @@ const handleLeaveRoom = useCallback(() => {
     emit('draw_undo', { roomCode: room.code })
   }, [emit, room.code])
 
-  const handlePlayAgain = useCallback(() => {
-    setGameState('waiting')
-    setFinalScores(null)
-    setChatMessages([])
-    setRemoteStrokes([])
-    setView(VIEWS.LOBBY)
-  }, [])
+
+
+const handlePlayAgain = useCallback(() => {
+  if (!isHost) {
+    setError('Only the host can restart the game.')
+    return
+  }
+
+  emit('play_again', { roomCode: room.code })
+}, [emit, isHost, room.code])
+
+
+
 
   // For preview when no socket connection, use sample data
   const lobbyPlayers =
@@ -441,6 +525,7 @@ const handleLeaveRoom = useCallback(() => {
           player={player}
           players={players.length > 0 ? players : SAMPLE_PLAYERS}
           gameState={gameState}
+          clearSignal={clearSignal}
           currentRound={currentRound}
           totalRounds={totalRounds}
           timeLeft={timeLeft}
