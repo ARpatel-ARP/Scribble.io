@@ -76,7 +76,7 @@ function Home({
             About
           </a>
           <a
-            href="https://github.com/ARpatel-ARP/Scribble.io"
+            href="https://github.com/ARpatel-ARP/Scribble.io.git"
             target="_blank"
             rel="noopener noreferrer"
             className="home-nav-link"
