@@ -17,11 +17,7 @@ const SAMPLE_PLAYERS = [
   { id: 'p3', name: 'Marin', score: 0, isReady: false },
 ]
 
-const SAMPLE_CHAT = [
-  { id: 'c1', type: 'system', text: 'Waiting for the host to start the game...', playerName: '' },
-  { id: 'c2', type: 'general', text: 'Hey everyone!', playerName: 'Alex', userId: 'p1' },
-  { id: 'c3', type: 'general', text: 'Ready to draw!', playerName: 'Jordan', userId: 'p2' },
-]
+
 
 function App() {
   const [view, setView] = useState(VIEWS.HOME)
@@ -614,7 +610,7 @@ console.log("Saved room code:", localStorage.getItem("scribble_room_code"));
           drawerId={drawerId}
           wordHint={wordHint}
           wordChoices={wordChoices}
-          chatMessages={chatMessages.length > 0 ? chatMessages : SAMPLE_CHAT}
+          chatMessages={chatMessages}
           remoteStrokes={remoteStrokes}
           isConnected={isConnected}
           onWordChosen={handleWordChosen}

@@ -76,7 +76,7 @@ function Home({
             About
           </a>
           <a
-            href="https://github.com"
+            href=""
             target="_blank"
             rel="noopener noreferrer"
             className="home-nav-link"
