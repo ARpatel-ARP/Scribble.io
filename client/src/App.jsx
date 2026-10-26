@@ -53,16 +53,16 @@ function App() {
   const socketListenersSetup = useRef(false)
 
 
-   const reconnectAttempted = useRef(false);
+  const reconnectAttempted = useRef(false);
   const setupSocketListenersRef = useRef(null);
-  
+
 
   // Set up socket event listeners once
   const setupSocketListeners = useCallback(() => {
     if (socketListenersSetup.current) return
     socketListenersSetup.current = true
 
-   
+
 
 
     // Room events
@@ -102,7 +102,15 @@ function App() {
       setPlayer(data.player)
       sessionStorage.setItem('scribble_room', data.room.code)
       sessionStorage.setItem('scribble_player', JSON.stringify(data.player))
-      sessionStorage.setItem("scribble_original_player_id", data.player.playerId);
+      localStorage.setItem(
+        "scribble_original_player_id",
+        data.player.playerId
+      );
+
+      localStorage.setItem(
+        "scribble_room_code",
+        data.room.code
+      );
       setPlayers(data.players)
       setIsHost(data.isHost)
       setError(null)
@@ -317,43 +325,49 @@ function App() {
   setupSocketListenersRef.current = setupSocketListeners;
 
 
+
   useEffect(() => {
-    const navigation = performance.getEntriesByType("navigation")[0];
+    const navigation = performance.getEntriesByType("navigation")[0]
 
-    // Automatic reconnection only after an actual browser refresh.
-    // A newly opened tab must not reclaim another tab's player.
-    if (navigation?.type !== "reload") return;
+    // Only automatically restore the previous session after a refresh.
+    if (navigation?.type !== 'reload') return
 
-    if (reconnectAttempted.current) return;
-
-    const savedRoom = sessionStorage.getItem("scribble_room");
+    const savedRoom = sessionStorage.getItem('scribble_room')
     const savedPlayerId = sessionStorage.getItem(
-      "scribble_original_player_id"
-    );
+      'scribble_original_player_id'
+    )
 
-    if (!savedRoom || !savedPlayerId) return;
+    if (!savedRoom || !savedPlayerId) return
 
-    reconnectAttempted.current = true;
-
-    setupSocketListenersRef.current?.();
+    // Register handlers before asking the server to restore the player.
+    setupSocketListenersRef.current?.()
 
     const tryReconnect = () => {
-      emit("reconnect_room", {
+      if (reconnectAttempted.current) return
+
+      reconnectAttempted.current = true
+
+      emit('reconnect_room', {
         roomCode: savedRoom,
         playerId: savedPlayerId,
-      });
-    };
+      })
+    }
 
     if (socket.connected) {
-      tryReconnect();
+      tryReconnect()
     } else {
-      socket.once("connect", tryReconnect);
+      socket.once('connect', tryReconnect)
     }
 
     return () => {
-      socket.off("connect", tryReconnect);
-    };
-  }, [socket, emit]);
+      socket.off('connect', tryReconnect)
+
+      // React StrictMode replays effects during development.
+      // Allow the application handlers to be registered again.
+      socketListenersSetup.current = false
+    }
+  }, [socket, emit])
+
 
 
 
@@ -368,19 +382,29 @@ function App() {
     [emit, setupSocketListeners]
   );
 
+
   const handleJoinRoom = useCallback(
     (name, code) => {
-      setIsLoading(true)
-      setError(null)
-      setupSocketListeners()
+      setIsLoading(true);
+      setError(null);
+      setupSocketListeners();
 
-      emit('join_room', {
-        playerName: name,
-        roomCode: code,
-      })
+      const savedPlayerId = localStorage.getItem("scribble_original_player_id");
+      const savedRoomCode = localStorage.getItem("scribble_room_code");
+
+      console.log("Saved player ID:", localStorage.getItem("scribble_original_player_id"));
+console.log("Saved room code:", localStorage.getItem("scribble_room_code"));
+      emit("join_room", {
+  playerName: name,
+  roomCode: code,
+  playerId: localStorage.getItem("scribble_room_code")?.toUpperCase() === code.trim().toUpperCase()
+    ? localStorage.getItem("scribble_original_player_id")
+    : null,
+});
     },
     [emit, setupSocketListeners],
   )
+
 
   // LOBBY callbacks
   const handleStartGame = useCallback(() => {

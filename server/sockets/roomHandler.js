@@ -3,6 +3,7 @@ import {
   getRoom,
   removePlayerFromRoom,
   reconnectPlayer,
+  clearDisconnectTimer,
 } from "../game/roomManager.js";
 import { randomUUID } from "crypto";
 
@@ -87,12 +88,12 @@ function startRoundTimer(io, room) {
 
 
     console.log("[HINT DEBUG]", {
-  room: room.code,
-  state: room.state,
-  word: room.word,
-  timeLeft: room.timeLeft,
-  drawTime: room.settings.drawTime,
-});
+      room: room.code,
+      state: room.state,
+      word: room.word,
+      timeLeft: room.timeLeft,
+      drawTime: room.settings.drawTime,
+    });
 
     // Reveal more letters as the round progresses.
     // Reveal more letters as the round progresses.
@@ -340,97 +341,98 @@ function endGame(io, room, message) {
 function registerRoomHandlers(io, socket) {
 
   socket.on("reconnect_room", ({ roomCode, playerId } = {}) => {
-  const code = roomCode?.trim().toUpperCase();
+    const code = roomCode?.trim().toUpperCase();
 
-  if (!code || !playerId) {
-    socket.emit("room_error", {
-      message: "Missing room or player information.",
+    if (!code || !playerId) {
+      socket.emit("room_error", {
+        message: "Missing room or player information.",
+      });
+      return;
+    }
+
+    const room = getRoom(code);
+
+    if (!room) {
+      socket.emit("room_error", {
+        message: "Room no longer exists.",
+      });
+      return;
+    }
+
+    const player = room.players.find((p) => p.playerId === playerId);
+
+    if (!player) {
+      socket.emit("room_error", {
+        message: "Your previous player session was not found.",
+      });
+      return;
+    }
+    clearDisconnectTimer(playerId);
+
+    const oldPlayerId = player.id;
+    const restoredRoom = reconnectPlayer(code, playerId, socket.id);
+
+    if (!restoredRoom) return;
+
+    socket.join(code);
+    socket.data.roomCode = code;
+
+    socket.emit("room_joined", {
+      room: {
+        code,
+        settings: restoredRoom.settings,
+      },
+      player: {
+        ...player,
+        id: socket.id,
+      },
+      players: getPublicPlayers(restoredRoom),
+      isHost: restoredRoom.hostId === socket.id,
+      gameState: {
+        state: restoredRoom.state,
+        currentRound: restoredRoom.currentRound,
+        totalRounds: restoredRoom.totalRounds,
+        drawerId: restoredRoom.drawerId,
+        timeLeft: restoredRoom.timeLeft,
+        wordHint: restoredRoom.wordHint,
+      },
     });
-    return;
-  }
 
-  const room = getRoom(code);
-
-  if (!room) {
-    socket.emit("room_error", {
-      message: "Room no longer exists.",
-    });
-    return;
-  }
-
-  const player = room.players.find((p) => p.playerId === playerId);
-
-  if (!player) {
-    socket.emit("room_error", {
-      message: "Your previous player session was not found.",
-    });
-    return;
-  }
-
-  const oldPlayerId = player.id;
-  const restoredRoom = reconnectPlayer(code, playerId, socket.id);
-
-  if (!restoredRoom) return;
-
-  socket.join(code);
-  socket.data.roomCode = code;
-
-  socket.emit("room_joined", {
-    room: {
-      code,
-      settings: restoredRoom.settings,
-    },
-    player: {
-      ...player,
-      id: socket.id,
-    },
-    players: getPublicPlayers(restoredRoom),
-    isHost: restoredRoom.hostId === socket.id,
-    gameState: {
-      state: restoredRoom.state,
-      currentRound: restoredRoom.currentRound,
-      totalRounds: restoredRoom.totalRounds,
-      drawerId: restoredRoom.drawerId,
-      timeLeft: restoredRoom.timeLeft,
-      wordHint: restoredRoom.wordHint,
-    },
-  });
-
-  io.to(code).emit("player_joined", {
-    players: getPublicPlayers(restoredRoom),
-  });
-
-  if (restoredRoom.state === "drawing") {
-    socket.emit("game_state", {
-      state: restoredRoom.state,
-      currentRound: restoredRoom.currentRound,
-      totalRounds: restoredRoom.totalRounds,
-      drawerId: restoredRoom.drawerId,
-      timeLeft: restoredRoom.timeLeft,
-      wordHint: restoredRoom.wordHint,
+    io.to(code).emit("player_joined", {
       players: getPublicPlayers(restoredRoom),
     });
 
-    // Restore the actual word privately if this player is the drawer.
-    if (restoredRoom.drawerId === socket.id && restoredRoom.word) {
-      socket.emit("word_selected", {
-        word: restoredRoom.word,
+    if (restoredRoom.state === "drawing") {
+      socket.emit("game_state", {
+        state: restoredRoom.state,
+        currentRound: restoredRoom.currentRound,
+        totalRounds: restoredRoom.totalRounds,
+        drawerId: restoredRoom.drawerId,
+        timeLeft: restoredRoom.timeLeft,
+        wordHint: restoredRoom.wordHint,
+        players: getPublicPlayers(restoredRoom),
       });
-    }
-  } else if (restoredRoom.state === "round_end") {
-    socket.emit("game_state", {
-      state: restoredRoom.state,
-      currentRound: restoredRoom.currentRound,
-      totalRounds: restoredRoom.totalRounds,
-    });
-  } else if (restoredRoom.state === "selecting") {
-    if (restoredRoom.drawerId === socket.id) {
-      socket.emit("word_choices", {
-        wordChoices: restoredRoom.wordChoices || [],
+
+      // Restore the actual word privately if this player is the drawer.
+      if (restoredRoom.drawerId === socket.id && restoredRoom.word) {
+        socket.emit("word_selected", {
+          word: restoredRoom.word,
+        });
+      }
+    } else if (restoredRoom.state === "round_end") {
+      socket.emit("game_state", {
+        state: restoredRoom.state,
+        currentRound: restoredRoom.currentRound,
+        totalRounds: restoredRoom.totalRounds,
       });
+    } else if (restoredRoom.state === "selecting") {
+      if (restoredRoom.drawerId === socket.id) {
+        socket.emit("word_choices", {
+          wordChoices: restoredRoom.wordChoices || [],
+        });
+      }
     }
-  }
-});
+  });
 
   // CREATE ROOM
   socket.on("create_room", ({ playerName } = {}) => {
@@ -504,11 +506,12 @@ function registerRoomHandlers(io, socket) {
     }
 
     const allowedSettings = {
-      rounds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-      drawTime: [30, 60, 90, 120],
-      maxPlayers: [2, 4, 6, 8, 10, 12],
+      rounds: [1, 2, 3, 5, 8],
+      drawTime: [30, 45, 60, 90, 120],
+      maxPlayers: [4, 6, 8, 10, 12],
       wordChoices: [2, 3, 4, 5],
     };
+
 
     const updatedSettings = { ...room.settings };
 
@@ -545,55 +548,90 @@ function registerRoomHandlers(io, socket) {
 
   // JOIN ROOM
 
-  socket.on("join_room", ({ playerName, roomCode } = {}) => {
-    const name = playerName?.trim();
-    const code = roomCode?.trim().toUpperCase();
+ socket.on("join_room", ({ playerName, roomCode, playerId } = {}) => {
+const name = playerName?.trim();
+const code = roomCode?.trim().toUpperCase();
 
-    if (!name || name.length > 20) {
-      socket.emit("room_error", {
-        message: "Enter a name between 1 and 20 characters.",
-      });
-      return;
-    }
+if (!name || name.length > 20) {
+socket.emit("room_error", {
+message: "Enter a name between 1 and 20 characters.",
+});
+return;
+}
 
-    if (!code) {
-      socket.emit("room_error", {
-        message: "Enter a room code.",
-      });
-      return;
-    }
+if (!code) {
+socket.emit("room_error", {
+message: "Enter a room code.",
+});
+return;
+}
 
-    if (socket.data.roomCode) {
-      socket.emit("room_error", {
-        message: "You are already in a room. Leave it first.",
-      });
-      return;
-    }
+if (socket.data.roomCode) {
+socket.emit("room_error", {
+message: "You are already in a room. Leave it first.",
+});
+return;
+}
 
-    const room = getRoom(code);
+const room = getRoom(code);
 
-    if (!room) {
-      socket.emit("room_error", {
-        message: "Room not found. Check the room code.",
-      });
-      return;
-    }
+if (!room) {
+socket.emit("room_error", {
+message: "Room not found. Check the room code.",
+});
+return;
+}
 
-    if (room.state === "game_over") {
-      socket.emit("room_error", {
-        message: "This game has ended. Create a new room.",
-      });
-      return;
-    }
+if (room.state === "game_over") {
+socket.emit("room_error", {
+message: "This game has ended. Create a new room.",
+});
+return;
+}
 
-    if (room.players.length >= room.settings.maxPlayers) {
-      socket.emit("room_error", {
-        message: "This room is full.",
-      });
-      return;
-    }
+// Check whether this is a returning player.
+const existingPlayer = playerId
+? room.players.find((p) => p.playerId === playerId)
+: null;
 
-    const player = {
+let player;
+let isReturningPlayer = false;
+
+if (existingPlayer) {
+// Restore the existing player instead of creating a duplicate.
+clearDisconnectTimer(existingPlayer.playerId);
+
+
+const restoredRoom = reconnectPlayer(
+  code,
+  existingPlayer.playerId,
+  socket.id
+);
+
+if (!restoredRoom) {
+  socket.emit("room_error", {
+    message: "Could not restore your previous session.",
+  });
+  return;
+}
+
+player = restoredRoom.players.find(
+  (p) => p.playerId === existingPlayer.playerId
+);
+
+isReturningPlayer = true;
+
+
+} else {
+if (room.players.length >= room.settings.maxPlayers) {
+socket.emit("room_error", {
+message: "This room is full.",
+});
+return;
+}
+
+
+player = {
   id: socket.id,
   playerId: randomUUID(),
   name,
@@ -602,50 +640,72 @@ function registerRoomHandlers(io, socket) {
   isReady: true,
 };
 
-    room.players.push(player);
-    socket.join(room.code);
-    socket.data.roomCode = room.code;
+room.players.push(player);
 
-    socket.emit("room_joined", {
-      room: {
-        code: room.code,
-        settings: room.settings,
-      },
-      player,
-      players: getPublicPlayers(room),
-      isHost: false,
-      gameState: {
-        state: room.state,
-        currentRound: room.currentRound,
-        totalRounds: room.totalRounds,
-        drawerId: room.drawerId,
-        timeLeft: room.timeLeft,
-        wordHint: room.wordHint,
-      },
-    });
 
-    io.to(room.code).emit("player_joined", {
-      players: getPublicPlayers(room),
-    });
+}
 
-    // Tell the new player which stage the game is in.
-    if (room.state === "drawing") {
-      socket.emit("game_state", {
-        state: room.state,
-        currentRound: room.currentRound,
-        totalRounds: room.totalRounds,
-        drawerId: room.drawerId,
-        timeLeft: room.timeLeft,
-        wordHint: room.wordHint,
-      });
-    } else if (room.state === "round_end") {
-      socket.emit("game_state", {
-        state: room.state,
-        currentRound: room.currentRound,
-        totalRounds: room.totalRounds,
-      });
-    }
+socket.join(code);
+socket.data.roomCode = code;
+
+socket.emit("room_joined", {
+room: {
+code: room.code,
+settings: room.settings,
+},
+player,
+players: getPublicPlayers(room),
+isHost: room.hostId === socket.id,
+gameState: {
+state: room.state,
+currentRound: room.currentRound,
+totalRounds: room.totalRounds,
+drawerId: room.drawerId,
+timeLeft: room.timeLeft,
+wordHint: room.wordHint,
+},
+});
+
+io.to(room.code).emit(
+isReturningPlayer ? "player_joined" : "player_joined",
+{
+players: getPublicPlayers(room),
+}
+);
+
+// Restore the returning player's current game stage.
+if (room.state === "drawing") {
+socket.emit("game_state", {
+state: room.state,
+currentRound: room.currentRound,
+totalRounds: room.totalRounds,
+drawerId: room.drawerId,
+timeLeft: room.timeLeft,
+wordHint: room.wordHint,
+players: getPublicPlayers(room),
+});
+
+if (room.drawerId === socket.id && room.word) {
+  socket.emit("word_selected", {
+    word: room.word,
   });
+}
+
+} else if (room.state === "round_end") {
+socket.emit("game_state", {
+state: room.state,
+currentRound: room.currentRound,
+totalRounds: room.totalRounds,
+});
+} else if (room.state === "selecting") {
+if (room.drawerId === socket.id) {
+socket.emit("word_choices", {
+wordChoices: room.wordChoices || [],
+});
+}
+}
+});
+
 
 
   socket.on("play_again", ({ roomCode } = {}) => {

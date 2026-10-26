@@ -1,6 +1,29 @@
 import { randomUUID } from "crypto";
 const rooms = new Map();
 
+const disconnectTimers = new Map();
+
+export function setDisconnectTimer(playerId, timer) {
+const existingTimer = disconnectTimers.get(playerId);
+
+if (existingTimer) {
+clearTimeout(existingTimer);
+}
+
+disconnectTimers.set(playerId, timer);
+}
+
+export function clearDisconnectTimer(playerId) {
+const timer = disconnectTimers.get(playerId);
+
+if (timer) {
+clearTimeout(timer);
+}
+
+disconnectTimers.delete(playerId);
+}
+
+
 function generateRoomCode() {
   const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code;
@@ -86,37 +109,40 @@ function getRoom(roomCode) {
 }
 
 function removePlayerFromRoom(roomCode, socketId) {
-  const room = rooms.get(roomCode);
+const room = rooms.get(roomCode);
 
-  if (!room) return null;
+if (!room) return null;
 
-  const playerExists = room.players.some(
-    (player) => player.id === socketId
-  );
+const player = room.players.find((p) => p.id === socketId);
 
-  if (!playerExists) return null;
+if (!player) return null;
 
-  room.players = room.players.filter(
-    (player) => player.id !== socketId
-  );
+// Cancel any pending disconnect timer for this player.
+clearDisconnectTimer(player.playerId);
 
-  if (room.players.length === 0) {
-    rooms.delete(roomCode);
-    return { room: null, deleted: true };
-  }
+room.players = room.players.filter((p) => p.id !== socketId);
 
-  if (room.hostId === socketId) {
-    const newHost = room.players[0];
-    room.hostId = newHost.id;
-
-    room.players = room.players.map((player) => ({
-      ...player,
-      isHost: player.id === newHost.id,
-    }));
-  }
-
-  return { room, deleted: false };
+if (room.players.length === 0) {
+rooms.delete(roomCode);
+return { room: null, deleted: true };
 }
+
+// Transfer host privileges if the host leaves permanently.
+if (room.hostId === socketId) {
+const newHost = room.players[0];
+
+room.hostId = newHost.id;
+
+room.players = room.players.map((p) => ({
+  ...p,
+  isHost: p.id === newHost.id,
+}));
+
+}
+
+return { room, deleted: false };
+}
+
 
 export {
   rooms,

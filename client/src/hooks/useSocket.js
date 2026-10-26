@@ -1,10 +1,9 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { getSocket, disconnectSocket } from '../socket/socket'
 
 export default function useSocket() {
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState(null)
-  const listenersRef = useRef([])
 
   const socket = getSocket()
 
@@ -13,9 +12,11 @@ export default function useSocket() {
       setIsConnected(true)
       setError(null)
     }
+
     const handleDisconnect = () => {
       setIsConnected(false)
     }
+
     const handleError = (err) => {
       setError(err instanceof Error ? err : new Error(String(err)))
     }
@@ -24,26 +25,17 @@ export default function useSocket() {
     socket.on('disconnect', handleDisconnect)
     socket.on('connect_error', handleError)
 
-    if (socket.connected) {
-      setIsConnected(true)
-    }
+    setIsConnected(socket.connected)
 
     return () => {
       socket.off('connect', handleConnect)
       socket.off('disconnect', handleDisconnect)
       socket.off('connect_error', handleError)
-      listenersRef.current.forEach(({ event, handler }) => {
-        socket.off(event, handler)
-      })
-      listenersRef.current = []
     }
   }, [socket])
 
   const emit = useCallback(
     (event, data) => {
-       console.log("[Socket emit]", event, data);
-    console.log("[Socket connected]", socket.connected);
-    
       socket.emit(event, data)
     },
     [socket],
@@ -52,7 +44,6 @@ export default function useSocket() {
   const on = useCallback(
     (event, handler) => {
       socket.on(event, handler)
-      listenersRef.current.push({ event, handler })
     },
     [socket],
   )
@@ -60,9 +51,6 @@ export default function useSocket() {
   const off = useCallback(
     (event, handler) => {
       socket.off(event, handler)
-      listenersRef.current = listenersRef.current.filter(
-        (l) => !(l.event === event && l.handler === handler),
-      )
     },
     [socket],
   )

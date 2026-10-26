@@ -3,8 +3,12 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import app from "./app.js";
 import registerRoomHandlers, { endRoundEarly } from "./sockets/roomHandler.js";
-import { getRoom, 
-  removePlayerFromRoom } from "./game/roomManager.js";
+import {
+  getRoom,
+  removePlayerFromRoom,
+  setDisconnectTimer,
+  clearDisconnectTimer,
+} from "./game/roomManager.js";
 import registerDrawingHandlers from "./sockets/drawingHandlers.js";
 import registerChatHandlers from "./sockets/chatHandler.js";
 
@@ -31,76 +35,110 @@ console.log(`Player disconnected: ${socket.id}`);
 
 const roomCode = socket.data.roomCode;
 
-if (!roomCode) {
-return;
+if (!roomCode) return;
+
+const room = getRoom(roomCode);
+
+if (!room) return;
+
+const disconnectedPlayer = room.players.find(
+(player) => player.id === socket.id
+);
+
+if (!disconnectedPlayer) return;
+
+const { playerId } = disconnectedPlayer;
+
+console.log(
+`Waiting 30 seconds for player ${disconnectedPlayer.name} to reconnect.`
+);
+
+const timer = setTimeout(() => {
+const currentRoom = getRoom(roomCode);
+
+
+// The room might have been deleted while waiting.
+if (!currentRoom) {
+  clearDisconnectTimer(playerId);
+  return;
 }
 
-// Get the room before removing the player.
-const existingRoom = getRoom(roomCode);
+// Only remove the player if they still belong to the old socket.
+// A successful reconnect changes player.id to the new socket ID.
+const stillDisconnected = currentRoom.players.find(
+  (player) =>
+    player.playerId === playerId &&
+    player.id === socket.id
+);
 
-if (!existingRoom) {
-return;
+if (!stillDisconnected) {
+  clearDisconnectTimer(playerId);
+  return;
 }
 
-// Check whether the disconnected player is the active drawer.
 const wasDrawer =
-existingRoom.state === "drawing" &&
-existingRoom.drawerId === socket.id;
+  currentRoom.state === "drawing" &&
+  currentRoom.drawerId === socket.id;
 
 const result = removePlayerFromRoom(roomCode, socket.id);
 
-if (!result) {
-return;
-}
+if (!result) return;
+
+console.log(
+  `Player ${disconnectedPlayer.name} was removed after the reconnection timeout.`
+);
 
 if (result.deleted) {
-io.to(roomCode).emit("room_deleted", {
-message: "The room has been closed.",
-});
+  io.to(roomCode).emit("room_deleted", {
+    message: "The room has been closed.",
+  });
 
-return;
-
+  return;
 }
 
-const room = result.room;
+const updatedRoom = result.room;
 
-const publicPlayers = room.players.map((player) => ({
-id: player.id,
-name: player.name,
-score: player.score,
-isHost: player.isHost,
-isReady: player.isReady,
+const publicPlayers = updatedRoom.players.map((player) => ({
+  id: player.id,
+  playerId: player.playerId,
+  name: player.name,
+  score: player.score,
+  isHost: player.isHost,
+  isReady: player.isReady,
 }));
 
 io.to(roomCode).emit("player_left", {
-players: publicPlayers,
-hostId: room.hostId,
+  players: publicPlayers,
+  hostId: updatedRoom.hostId,
 });
 
-// Only check round-ending conditions during an active drawing round.
-if (room.state === "drawing") {
-const eligibleGuessers = room.players.filter(
-(player) => player.id !== room.drawerId
-);
-
-
-const remainingGuessers = eligibleGuessers.filter(
-  (player) =>
-    !(room.correctGuessers || []).includes(player.id)
-);
-
-if (wasDrawer) {
-  endRoundEarly(io, room, "The drawer disconnected!");
-} else if (remainingGuessers.length === 0) {
-  endRoundEarly(
-    io,
-    room,
-    "No players left to guess the word!"
+if (updatedRoom.state === "drawing") {
+  const eligibleGuessers = updatedRoom.players.filter(
+    (player) => player.id !== updatedRoom.drawerId
   );
+
+  const remainingGuessers = eligibleGuessers.filter(
+    (player) =>
+      !(updatedRoom.correctGuessers || []).includes(player.id)
+  );
+
+  if (wasDrawer) {
+    endRoundEarly(io, updatedRoom, "The drawer disconnected!");
+  } else if (remainingGuessers.length === 0) {
+    endRoundEarly(
+      io,
+      updatedRoom,
+      "No players left to guess the word!"
+    );
+  }
 }
 
-}
+
+}, 30_000);
+
+setDisconnectTimer(playerId, timer);
 });
+
 
 });
 
