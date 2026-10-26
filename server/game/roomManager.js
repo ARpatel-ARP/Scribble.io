@@ -1,28 +1,27 @@
 import { randomUUID } from "crypto";
-const rooms = new Map();
 
+const rooms = new Map();
 const disconnectTimers = new Map();
 
 export function setDisconnectTimer(playerId, timer) {
-const existingTimer = disconnectTimers.get(playerId);
+  const existingTimer = disconnectTimers.get(playerId);
 
-if (existingTimer) {
-clearTimeout(existingTimer);
-}
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
 
-disconnectTimers.set(playerId, timer);
+  disconnectTimers.set(playerId, timer);
 }
 
 export function clearDisconnectTimer(playerId) {
-const timer = disconnectTimers.get(playerId);
+  const timer = disconnectTimers.get(playerId);
 
-if (timer) {
-clearTimeout(timer);
+  if (timer) {
+    clearTimeout(timer);
+  }
+
+  disconnectTimers.delete(playerId);
 }
-
-disconnectTimers.delete(playerId);
-}
-
 
 function generateRoomCode() {
   const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -43,18 +42,16 @@ function generateRoomCode() {
 
 export function reconnectPlayer(roomCode, playerId, newSocketId) {
   const room = rooms.get(roomCode);
+
   if (!room) return null;
 
-  // Find the player by their persistent identity.
-  const player = room.players.find(
-    (p) => p.playerId === playerId
-  );
+  // Find the player using their persistent identity.
+  const player = room.players.find((p) => p.playerId === playerId);
 
   if (!player) return null;
 
-  const oldSocketId = player.id;
-
   // Replace the temporary socket ID.
+  const oldSocketId = player.id;
   player.id = newSocketId;
 
   if (room.hostId === oldSocketId) {
@@ -66,8 +63,8 @@ export function reconnectPlayer(roomCode, playerId, newSocketId) {
   }
 
   if (room.correctGuessers) {
-    room.correctGuessers = room.correctGuessers.map(
-      (id) => id === oldSocketId ? newSocketId : id
+    room.correctGuessers = room.correctGuessers.map((id) =>
+      id === oldSocketId ? newSocketId : id
     );
   }
 
@@ -78,29 +75,36 @@ function createRoom(socketId, playerName) {
   const roomCode = generateRoomCode();
 
   const player = {
-  id: socketId,
-  playerId: randomUUID(),
-  name: playerName,
-  score: 0,
-  isHost: true,
-  isReady: true,
-};
+    id: socketId,
+    playerId: randomUUID(),
+    name: playerName,
+    score: 0,
+    isHost: true,
+    isReady: true,
+  };
 
   const room = {
     code: roomCode,
     hostId: socketId,
     wordSelectionTimer: null,
     players: [player],
+
+    // Persistent player IDs banned from this room.
+    bannedPlayerIds: new Set(),
+
     settings: {
       rounds: 3,
       drawTime: 60,
       maxPlayers: 8,
       wordChoices: 3,
+      wordCategory: "All",
     },
+
     state: "waiting",
   };
 
   rooms.set(roomCode, room);
+
   return room;
 }
 
@@ -108,45 +112,59 @@ function getRoom(roomCode) {
   return rooms.get(roomCode);
 }
 
+function banPlayerFromRoom(roomCode, socketId) {
+  const room = rooms.get(roomCode);
+
+  if (!room) return null;
+
+  const player = room.players.find((p) => p.id === socketId);
+
+  if (!player) return null;
+
+  // Store the persistent ID, not the temporary socket ID.
+  room.bannedPlayerIds.add(player.playerId);
+
+  return removePlayerFromRoom(roomCode, socketId);
+}
+
 function removePlayerFromRoom(roomCode, socketId) {
-const room = rooms.get(roomCode);
+  const room = rooms.get(roomCode);
 
-if (!room) return null;
+  if (!room) return null;
 
-const player = room.players.find((p) => p.id === socketId);
+  const player = room.players.find((p) => p.id === socketId);
 
-if (!player) return null;
+  if (!player) return null;
 
-// Cancel any pending disconnect timer for this player.
-clearDisconnectTimer(player.playerId);
+  // Cancel any pending disconnect timer.
+  clearDisconnectTimer(player.playerId);
 
-room.players = room.players.filter((p) => p.id !== socketId);
+  room.players = room.players.filter((p) => p.id !== socketId);
 
-if (room.players.length === 0) {
-rooms.delete(roomCode);
-return { room: null, deleted: true };
+  if (room.players.length === 0) {
+    rooms.delete(roomCode);
+    return { room: null, deleted: true };
+  }
+
+  // Transfer host privileges if the host leaves permanently.
+  if (room.hostId === socketId) {
+    const newHost = room.players[0];
+
+    room.hostId = newHost.id;
+
+    room.players = room.players.map((p) => ({
+      ...p,
+      isHost: p.id === newHost.id,
+    }));
+  }
+
+  return { room, deleted: false };
 }
-
-// Transfer host privileges if the host leaves permanently.
-if (room.hostId === socketId) {
-const newHost = room.players[0];
-
-room.hostId = newHost.id;
-
-room.players = room.players.map((p) => ({
-  ...p,
-  isHost: p.id === newHost.id,
-}));
-
-}
-
-return { room, deleted: false };
-}
-
 
 export {
   rooms,
   createRoom,
   getRoom,
   removePlayerFromRoom,
+  banPlayerFromRoom,
 };

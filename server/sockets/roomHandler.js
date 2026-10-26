@@ -4,8 +4,107 @@ import {
   removePlayerFromRoom,
   reconnectPlayer,
   clearDisconnectTimer,
+  banPlayerFromRoom,
 } from "../game/roomManager.js";
 import { randomUUID } from "crypto";
+
+const WORD_CATEGORIES = {
+  Animals: [
+    "Elephant",
+    "Butterfly",
+    "Turtle",
+    "Dolphin",
+    "Lion",
+    "Penguin",
+    "Giraffe",
+    "Rabbit",
+    "Monkey",
+    "Octopus",
+  ],
+
+  Food: [
+    "Apple",
+    "Pizza",
+    "Burger",
+    "Sandwich",
+    "Watermelon",
+    "Ice Cream",
+    "Pancakes",
+    "Popcorn",
+    "Donut",
+    "Sushi",
+  ],
+
+  Objects: [
+    "Guitar",
+    "Camera",
+    "Rocket",
+    "Umbrella",
+    "Laptop",
+    "Bicycle",
+    "Clock",
+    "Backpack",
+    "Key",
+  ],
+
+  Nature: [
+    "Rainbow",
+    "Sunflower",
+    "Mountain",
+    "Volcano",
+    "Waterfall",
+    "Forest",
+    "Desert",
+    "Thunderstorm",
+    "Ocean",
+    "Moon",
+  ],
+
+  Places: [
+    "Castle",
+    "Airport",
+    "Hospital",
+    "Library",
+    "School",
+    "Museum",
+    "Lighthouse",
+    "Stadium",
+    "Bridge",
+    "Temple",
+  ],
+};
+
+function generateWordChoices(room) {
+  const selectedCategory = room.settings.wordCategory || "All";
+
+  const wordPool =
+    selectedCategory === "All"
+      ? Object.values(WORD_CATEGORIES).flat()
+      : WORD_CATEGORIES[selectedCategory];
+
+  if (!wordPool || wordPool.length === 0) {
+    throw new Error(`Invalid word category: ${selectedCategory}`);
+  }
+
+  // Keep the existing Fisher-Yates shuffle algorithm.
+  const shuffledWords = [...wordPool];
+
+  for (let i = shuffledWords.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+
+    [shuffledWords[i], shuffledWords[j]] = [
+      shuffledWords[j],
+      shuffledWords[i],
+    ];
+  }
+
+  const choiceCount = Math.min(
+    Number(room.settings.wordChoices) || 3,
+    shuffledWords.length
+  );
+
+  return shuffledWords.slice(0, choiceCount);
+}
 
 function getPublicPlayers(room) {
   return room.players.map((player) => ({
@@ -225,42 +324,18 @@ function startNextRound(io, room) {
   room.timeLeft = 0;
   room.word = null;
 
-  // Generate fresh word choices.
-  const wordPool = [
-    "Apple",
-    "Rocket",
-    "Elephant",
-    "Guitar",
-    "Rainbow",
-    "Castle",
-    "Pizza",
-    "Butterfly",
-    "Airplane",
-    "Sunflower",
-    "Turtle",
-    "Volcano",
-    "Dolphin",
-    "Camera",
-    "Mountain",
-  ];
+  // Generate fresh word choices using the selected category.
+try {
+  room.wordChoices = generateWordChoices(room);
+} catch (error) {
+  console.error("[WORDS] Failed to generate next-round choices:", error);
+  endGame(io, room, "Unable to generate words for this category.");
+  return;
+}
 
-  const shuffledWords = [...wordPool];
+console.log("[WORDS] Next round category:", room.settings.wordCategory);
+console.log("[WORDS] Next round choices:", room.wordChoices);
 
-  for (let i = shuffledWords.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-
-    [shuffledWords[i], shuffledWords[j]] = [
-      shuffledWords[j],
-      shuffledWords[i],
-    ];
-  }
-
-  const choiceCount = Math.min(
-    room.settings.wordChoices || 3,
-    shuffledWords.length
-  );
-
-  room.wordChoices = shuffledWords.slice(0, choiceCount);
 
   // Notify everyone about the next round.
   io.to(room.code).emit("round_start", {
@@ -472,6 +547,132 @@ function registerRoomHandlers(io, socket) {
     });
   });
 
+  // Host removes a player from the room without banning them.
+socket.on("kick_player", ({ roomCode, targetPlayerId } = {}) => {
+  const code = roomCode?.trim().toUpperCase();
+  const room = getRoom(code);
+
+  if (!room || socket.data.roomCode !== code) {
+    socket.emit("room_error", {
+      message: "You are not in this room.",
+    });
+    return;
+  }
+
+  if (room.hostId !== socket.id) {
+    socket.emit("room_error", {
+      message: "Only the host can kick players.",
+    });
+    return;
+  }
+
+  const target = room.players.find(
+    (player) => player.playerId === targetPlayerId
+  );
+
+  if (!target) {
+    socket.emit("room_error", {
+      message: "Player not found in this room.",
+    });
+    return;
+  }
+
+  if (target.id === socket.id) {
+    socket.emit("room_error", {
+      message: "You cannot kick yourself.",
+    });
+    return;
+  }
+
+  const targetSocketId = target.id;
+
+  // Notify the target before removing them.
+  io.to(targetSocketId).emit("kicked", {
+    message: "The host removed you from the room.",
+  });
+
+  const result = removePlayerFromRoom(code, targetSocketId);
+
+  if (!result) return;
+
+  // Remove the target's socket from the room channel.
+  const targetSocket = io.sockets.sockets.get(targetSocketId);
+  if (targetSocket) {
+    targetSocket.leave(code);
+  targetSocket.data.roomCode = null;
+}
+
+  if (result.deleted) return;
+
+  io.to(code).emit("players_updated", {
+    players: getPublicPlayers(result.room),
+    hostId: result.room.hostId,
+  });
+});
+
+// Host bans a player from the room.
+socket.on("ban_player", ({ roomCode, targetPlayerId } = {}) => {
+  const code = roomCode?.trim().toUpperCase();
+  const room = getRoom(code);
+
+  if (!room || socket.data.roomCode !== code) {
+    socket.emit("room_error", {
+      message: "You are not in this room.",
+    });
+    return;
+  }
+
+  if (room.hostId !== socket.id) {
+    socket.emit("room_error", {
+      message: "Only the host can ban players.",
+    });
+    return;
+  }
+
+  const target = room.players.find(
+    (player) => player.playerId === targetPlayerId
+  );
+
+  if (!target) {
+    socket.emit("room_error", {
+      message: "Player not found in this room.",
+    });
+    return;
+  }
+
+  if (target.id === socket.id) {
+    socket.emit("room_error", {
+      message: "You cannot ban yourself.",
+    });
+    return;
+  }
+
+  const targetSocketId = target.id;
+
+  // Record the ban and remove the player.
+  const result = banPlayerFromRoom(code, targetSocketId);
+
+  if (!result) return;
+
+  io.to(targetSocketId).emit("banned", {
+    message: "The host banned you from this room.",
+  });
+
+  // Remove the target's socket from the room channel.
+  const targetSocket = io.sockets.sockets.get(targetSocketId);
+  if (targetSocket) {
+  targetSocket.leave(code);
+  targetSocket.data.roomCode = null;
+}
+
+  if (result.deleted) return;
+
+  io.to(code).emit("players_updated", {
+    players: getPublicPlayers(result.room),
+    hostId: result.room.hostId,
+  });
+});
+
   socket.on("update_settings", ({ roomCode, settings } = {}) => {
     const code = roomCode?.trim().toUpperCase();
 
@@ -506,14 +707,34 @@ function registerRoomHandlers(io, socket) {
     }
 
     const allowedSettings = {
-      rounds: [1, 2, 3, 5, 8],
-      drawTime: [30, 45, 60, 90, 120],
-      maxPlayers: [4, 6, 8, 10, 12],
-      wordChoices: [2, 3, 4, 5],
-    };
+  rounds: [1, 2, 3, 5, 8],
+  drawTime: [30, 45, 60, 90, 120],
+  maxPlayers: [4, 6, 8, 10, 12],
+  wordChoices: [2, 3, 4, 5],
+};
+
+const allowedCategories = [
+  "All",
+  "Animals",
+  "Food",
+  "Objects",
+  "Nature",
+  "Places",
+];
 
 
     const updatedSettings = { ...room.settings };
+    
+    if (settings?.wordCategory !== undefined) {
+      if (!allowedCategories.includes(settings.wordCategory)) {
+        socket.emit("room_error", {
+          message: "Invalid word category.",
+        });
+    return;
+  }
+
+  updatedSettings.wordCategory = settings.wordCategory;
+}
 
     for (const key of Object.keys(allowedSettings)) {
       if (settings?.[key] === undefined) continue;
@@ -526,18 +747,19 @@ function registerRoomHandlers(io, socket) {
         });
         return;
       }
-
+      
       if (key === "maxPlayers" && value < room.players.length) {
         socket.emit("room_error", {
           message: "Maximum players cannot be less than the current player count.",
         });
         return;
       }
-
+      
       updatedSettings[key] = value;
     }
-
+    
     room.settings = updatedSettings;
+    console.log("[SETTINGS UPDATED]", room.settings);
 
     io.to(code).emit("settings_updated", {
       settings: room.settings,
@@ -575,11 +797,20 @@ return;
 
 const room = getRoom(code);
 
+
+
 if (!room) {
 socket.emit("room_error", {
 message: "Room not found. Check the room code.",
 });
 return;
+}
+
+if (room.bannedPlayerIds?.has(playerId)) {
+  socket.emit("room_error", {
+    message: "You are banned from this room.",
+  });
+  return;
 }
 
 if (room.state === "game_over") {
@@ -714,7 +945,15 @@ wordChoices: room.wordChoices || [],
     const code = roomCode?.trim().toUpperCase();
 
     const room = getRoom(code);
-    console.log("[PLAY AGAIN] Current room state:", room.state);
+    if (!room) {
+  console.log("[PLAY AGAIN] Room not found for socket:", socket.id);
+
+  socket.emit("room_error", {
+    message: "Room not found. Please create or join a room again.",
+  });
+
+  return;
+}
     console.log("[PLAY AGAIN] Host ID:", room.hostId);
     console.log("[PLAY AGAIN] Requesting socket ID:", socket.id);
     if (!code || socket.data.roomCode !== code) {
@@ -838,45 +1077,23 @@ wordChoices: room.wordChoices || [],
     room.drawerId = firstDrawer.id;
     room.correctGuessers = [];
 
-    // Available words
-    const wordPool = [
-      "Apple",
-      "Rocket",
-      "Elephant",
-      "Guitar",
-      "Rainbow",
-      "Castle",
-      "Pizza",
-      "Butterfly",
-      "Airplane",
-      "Sunflower",
-      "Turtle",
-      "Volcano",
-      "Dolphin",
-      "Camera",
-      "Mountain",
-    ];
+    // Generate first-round word choices using the selected category.
+try {
+  room.wordChoices = generateWordChoices(room);
+} catch (error) {
+  console.error("[WORDS] Failed to generate first-round choices:", error);
 
-    // Shuffle the word pool
-    const shuffledWords = [...wordPool];
+  room.state = "waiting";
 
-    for (let i = shuffledWords.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+  socket.emit("room_error", {
+    message: "Unable to generate words for this category.",
+  });
 
-      [shuffledWords[i], shuffledWords[j]] = [
-        shuffledWords[j],
-        shuffledWords[i],
-      ];
-    }
+  return;
+}
 
-    // Generate word choices based on room settings
-    const choiceCount = Math.min(
-      room.settings.wordChoices || 3,
-      shuffledWords.length
-    );
-
-    room.wordChoices = shuffledWords.slice(0, choiceCount);
-
+console.log("[WORDS] First-round category:", room.settings.wordCategory);
+console.log("[WORDS] First-round choices:", room.wordChoices);
     // Notify everyone that word selection has started
     io.to(code).emit("start_game", {
       gameState: "selecting",

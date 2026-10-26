@@ -429,3 +429,72 @@
     padding: 14px 20px;
   }
 }
+
+.lobby-category-select {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid #d6d9d0;
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.lobby-category-select:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.lobby-player-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.lobby-player-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.lobby-kick-btn {
+  color: #9a4b31;
+  background: #f8ece7;
+  border-color: #ead1c7;
+}
+
+.lobby-ban-btn {
+  color: #9f3030;
+  background: #f8e7e7;
+  border-color: #edcccc;
+}
+
+.lobby-kick-btn:hover {
+  background: #f0dcd4;
+}
+
+.lobby-ban-btn:hover {
+  background: #efd1d1;
+}
+
+@media (max-width: 480px) {
+  .lobby-player-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .lobby-player-action {
+    flex: 1;
+    min-height: 36px;
+  }
+}
