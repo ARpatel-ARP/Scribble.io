@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import Home from './components/Home/Home.jsx'
 import Lobby from './components/Lobby/Lobby.jsx'
 import Game from './components/Game/Game.jsx'
@@ -49,15 +49,22 @@ function App() {
   const [finalScores, setFinalScores] = useState(null)
   const [clearSignal, setClearSignal] = useState(0);
 
-  const { isConnected, emit, on, off, disconnect } = useSocket()
+  const { socket, isConnected, emit, on, off, disconnect } = useSocket()
   const socketListenersSetup = useRef(false)
+
+
+   const reconnectAttempted = useRef(false);
+  const setupSocketListenersRef = useRef(null);
+  
 
   // Set up socket event listeners once
   const setupSocketListeners = useCallback(() => {
     if (socketListenersSetup.current) return
     socketListenersSetup.current = true
 
-    // Room events
+   
+
+
     // Room events
 
     on('room_created', (data) => {
@@ -65,6 +72,7 @@ function App() {
       setPlayer(data.player)
       sessionStorage.setItem('scribble_room', data.room.code)
       sessionStorage.setItem('scribble_player', JSON.stringify(data.player))
+      sessionStorage.setItem("scribble_original_player_id", data.player.playerId);
       setPlayers(data.players)
       setIsHost(data.isHost)
       setView(VIEWS.LOBBY)
@@ -94,6 +102,7 @@ function App() {
       setPlayer(data.player)
       sessionStorage.setItem('scribble_room', data.room.code)
       sessionStorage.setItem('scribble_player', JSON.stringify(data.player))
+      sessionStorage.setItem("scribble_original_player_id", data.player.playerId);
       setPlayers(data.players)
       setIsHost(data.isHost)
       setError(null)
@@ -304,6 +313,47 @@ function App() {
     });
 
   }, [on, currentRound])
+
+  setupSocketListenersRef.current = setupSocketListeners;
+
+
+  useEffect(() => {
+    const navigation = performance.getEntriesByType("navigation")[0];
+
+    // Automatic reconnection only after an actual browser refresh.
+    // A newly opened tab must not reclaim another tab's player.
+    if (navigation?.type !== "reload") return;
+
+    if (reconnectAttempted.current) return;
+
+    const savedRoom = sessionStorage.getItem("scribble_room");
+    const savedPlayerId = sessionStorage.getItem(
+      "scribble_original_player_id"
+    );
+
+    if (!savedRoom || !savedPlayerId) return;
+
+    reconnectAttempted.current = true;
+
+    setupSocketListenersRef.current?.();
+
+    const tryReconnect = () => {
+      emit("reconnect_room", {
+        roomCode: savedRoom,
+        playerId: savedPlayerId,
+      });
+    };
+
+    if (socket.connected) {
+      tryReconnect();
+    } else {
+      socket.once("connect", tryReconnect);
+    }
+
+    return () => {
+      socket.off("connect", tryReconnect);
+    };
+  }, [socket, emit]);
 
 
 

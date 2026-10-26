@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 const rooms = new Map();
 
 function generateRoomCode() {
@@ -17,16 +18,50 @@ function generateRoomCode() {
   return code;
 }
 
+export function reconnectPlayer(roomCode, playerId, newSocketId) {
+  const room = rooms.get(roomCode);
+  if (!room) return null;
+
+  // Find the player by their persistent identity.
+  const player = room.players.find(
+    (p) => p.playerId === playerId
+  );
+
+  if (!player) return null;
+
+  const oldSocketId = player.id;
+
+  // Replace the temporary socket ID.
+  player.id = newSocketId;
+
+  if (room.hostId === oldSocketId) {
+    room.hostId = newSocketId;
+  }
+
+  if (room.drawerId === oldSocketId) {
+    room.drawerId = newSocketId;
+  }
+
+  if (room.correctGuessers) {
+    room.correctGuessers = room.correctGuessers.map(
+      (id) => id === oldSocketId ? newSocketId : id
+    );
+  }
+
+  return room;
+}
+
 function createRoom(socketId, playerName) {
   const roomCode = generateRoomCode();
 
   const player = {
-    id: socketId,
-    name: playerName,
-    score: 0,
-    isHost: true,
-    isReady: true,
-  };
+  id: socketId,
+  playerId: randomUUID(),
+  name: playerName,
+  score: 0,
+  isHost: true,
+  isReady: true,
+};
 
   const room = {
     code: roomCode,
