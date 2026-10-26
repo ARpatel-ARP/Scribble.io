@@ -68,7 +68,7 @@ function Home({
         </div>
         <nav className="home-nav">
           <a
-            href="https://github.com"
+            href="https://github.com/ARpatel-ARP/Scribble.io/blob/main/README.md"
             target="_blank"
             rel="noopener noreferrer"
             className="home-nav-link"
@@ -76,7 +76,7 @@ function Home({
             About
           </a>
           <a
-            href=""
+            href="https://github.com/ARpatel-ARP/Scribble.io"
             target="_blank"
             rel="noopener noreferrer"
             className="home-nav-link"
