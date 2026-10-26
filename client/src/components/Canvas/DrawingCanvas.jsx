@@ -66,63 +66,61 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
   }, []);
 
   // Render one complete stroke.
-  const drawStroke = useCallback((ctx, stroke) => {
-    if (!stroke?.points?.length) return;
+  // Render one complete stroke using normalized coordinates.
+const drawStroke = useCallback((ctx, stroke) => {
+  if (!stroke?.points?.length) return;
 
+  const canvas = canvasRef.current;
+  if (!canvas) return;
 
-    ctx.save();
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
 
-    ctx.strokeStyle = stroke.color;
-    ctx.fillStyle = stroke.color;
-    ctx.lineWidth = stroke.size;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+  if (!width || !height) return;
 
-    ctx.globalCompositeOperation =
-      stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
+  const points = stroke.points.map((point) => ({
+    x: point.x * width,
+    y: point.y * height,
+  }));
 
-    const points = stroke.points;
+  ctx.save();
 
-    // Draw a dot for a single-point stroke.
-    if (points.length === 1) {
-      ctx.beginPath();
+  ctx.strokeStyle = stroke.color;
+  ctx.fillStyle = stroke.color;
+  ctx.lineWidth = stroke.size;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
 
-      ctx.arc(
-        points[0].x,
-        points[0].y,
-        stroke.size / 2,
-        0,
-        Math.PI * 2,
+  ctx.globalCompositeOperation =
+    stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
+
+  if (points.length === 1) {
+    ctx.beginPath();
+    ctx.arc(points[0].x, points[0].y, stroke.size / 2, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+
+    for (let i = 1; i < points.length; i++) {
+      const midX = (points[i - 1].x + points[i].x) / 2;
+      const midY = (points[i - 1].y + points[i].y) / 2;
+
+      ctx.quadraticCurveTo(
+        points[i - 1].x,
+        points[i - 1].y,
+        midX,
+        midY,
       );
-
-      ctx.fill();
-    } else {
-      // Draw a smooth line through the stroke's points.
-      ctx.beginPath();
-      ctx.moveTo(points[0].x, points[0].y);
-
-      for (let i = 1; i < points.length; i++) {
-        const midX = (points[i - 1].x + points[i].x) / 2;
-        const midY = (points[i - 1].y + points[i].y) / 2;
-
-        ctx.quadraticCurveTo(
-          points[i - 1].x,
-          points[i - 1].y,
-          midX,
-          midY,
-        );
-      }
-
-      const lastPoint = points[points.length - 1];
-
-      ctx.lineTo(lastPoint.x, lastPoint.y);
-      ctx.stroke();
     }
 
-    ctx.restore();
+    const lastPoint = points[points.length - 1];
+    ctx.lineTo(lastPoint.x, lastPoint.y);
+    ctx.stroke();
+  }
 
-
-  }, []);
+  ctx.restore();
+}, []);
 
   // Clear and redraw the complete canvas.
   const redrawAll = useCallback(() => {
@@ -183,28 +181,24 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
   }, [getCtx, redrawAll]);
 
   // Convert mouse or touch coordinates into canvas coordinates.
-  const getPos = useCallback((event) => {
-    const canvas = canvasRef.current;
+  // Convert pointer positions into normalized coordinates (0 to 1).
+const getPos = useCallback((event) => {
+  const canvas = canvasRef.current;
 
+  if (!canvas) return { x: 0, y: 0 };
 
-    if (!canvas) {
-      return { x: 0, y: 0 };
-    }
+  const rect = canvas.getBoundingClientRect();
 
-    const rect = canvas.getBoundingClientRect();
+  const touch = event.touches?.[0] || event.changedTouches?.[0];
 
-    const touch = event.touches?.[0] || event.changedTouches?.[0];
+  const clientX = touch ? touch.clientX : event.clientX;
+  const clientY = touch ? touch.clientY : event.clientY;
 
-    const clientX = touch ? touch.clientX : event.clientX;
-    const clientY = touch ? touch.clientY : event.clientY;
-
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-    };
-
-
-  }, []);
+  return {
+    x: Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)),
+    y: Math.max(0, Math.min(1, (clientY - rect.top) / rect.height)),
+  };
+}, []);
 
   // Begin a new stroke.
   const handleStart = useCallback(
@@ -252,57 +246,64 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
   );
 
   // Update an active stroke.
-  const handleMove = useCallback(
-    (event) => {
-      if (!isDrawingRef.current || !canDraw) return;
+  // Update an active stroke.
+const handleMove = useCallback(
+  (event) => {
+    if (!isDrawingRef.current || !canDraw) return;
 
+    event.preventDefault();
 
-      event.preventDefault();
+    const position = getPos(event);
+    const canvas = canvasRef.current;
+    const ctx = getCtx();
+    const stroke = currentStrokeRef.current;
 
-      const position = getPos(event);
-      const ctx = getCtx();
-      const stroke = currentStrokeRef.current;
+    if (!canvas || !ctx || !stroke || !lastPosRef.current) return;
 
-      if (!ctx || !stroke || !lastPosRef.current) return;
+    stroke.points.push(position);
 
-      stroke.points.push(position);
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
 
-      ctx.save();
+    const previous = {
+      x: lastPosRef.current.x * width,
+      y: lastPosRef.current.y * height,
+    };
 
-      ctx.strokeStyle = stroke.color;
-      ctx.lineWidth = stroke.size;
+    const current = {
+      x: position.x * width,
+      y: position.y * height,
+    };
 
-      ctx.globalCompositeOperation =
-        stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
+    ctx.save();
 
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+    ctx.strokeStyle = stroke.color;
+    ctx.lineWidth = stroke.size;
+    ctx.globalCompositeOperation =
+      stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
 
-      ctx.beginPath();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-      ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
+    ctx.beginPath();
+    ctx.moveTo(previous.x, previous.y);
 
-      const midX = (lastPosRef.current.x + position.x) / 2;
-      const midY = (lastPosRef.current.y + position.y) / 2;
+    ctx.quadraticCurveTo(
+      previous.x,
+      previous.y,
+      (previous.x + current.x) / 2,
+      (previous.y + current.y) / 2,
+    );
 
-      ctx.quadraticCurveTo(
-        lastPosRef.current.x,
-        lastPosRef.current.y,
-        midX,
-        midY,
-      );
+    ctx.stroke();
+    ctx.restore();
 
-      ctx.stroke();
-      ctx.restore();
+    lastPosRef.current = position;
 
-      lastPosRef.current = position;
-
-      onStrokeMove?.(stroke);
-    },
-    [canDraw, getPos, getCtx, onStrokeMove],
-
-
-  );
+    onStrokeMove?.(stroke);
+  },
+  [canDraw, getPos, getCtx, onStrokeMove],
+);
 
   // Finish the active stroke.
   const handleEnd = useCallback(() => {
