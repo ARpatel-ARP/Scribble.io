@@ -1,250 +1,415 @@
+
+/* =========================================
+   SCRIBBLE LOBBY — PLAYFUL PARTY STYLE
+   CSS-only redesign. Keep Lobby.jsx unchanged.
+========================================= */
+
 .lobby-page {
+  --lobby-cream: #fff9ed;
+  --lobby-ink: #292638;
+  --lobby-coral: #ff6b57;
+  --lobby-yellow: #ffd45c;
+  --lobby-teal: #4ecdc4;
+  --lobby-purple: #a78bfa;
+  --lobby-pink: #ffb8c6;
+  --lobby-green: #8bcf91;
+  --lobby-muted: #777386;
+  --lobby-border: 3px solid var(--lobby-ink);
+
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #faf9f5;
+  color: var(--lobby-ink);
+  background-color: var(--lobby-cream);
+  background-image: radial-gradient(#ded8c9 1px, transparent 1px);
+  background-size: 20px 20px;
+  font-family: inherit;
 }
+
+/* HEADER */
 
 .lobby-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 28px;
-  border-bottom: 1px solid rgba(165, 172, 138, 0.25);
-  background: #ffffff;
+  gap: 18px;
+  padding: 16px 28px;
+  background: var(--lobby-cream);
+  border-bottom: var(--lobby-border);
 }
 
-.lobby-header-left {
+.lobby-header-left,
+.lobby-header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .lobby-home-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 9px 15px;
+  border: 2px solid var(--lobby-ink);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--lobby-ink);
   font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.lobby-home-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 3px 3px 0 var(--lobby-ink);
 }
 
 .lobby-code-display {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  padding: 6px 16px;
-  border-radius: 10px;
-  background: #e8ebdd;
-  border: 1px solid rgba(165, 172, 138, 0.3);
+  gap: 3px;
+  padding: 8px 16px;
+  border: var(--lobby-border);
+  border-radius: 13px;
+  background: var(--lobby-yellow);
+  box-shadow: 3px 3px 0 var(--lobby-ink);
 }
 
 .lobby-code-label {
+  color: var(--lobby-ink);
   font-size: 9px;
-  font-weight: 600;
+  font-weight: 900;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #77796e;
 }
 
 .lobby-code-value {
-  font-size: 18px;
-  font-weight: 700;
+  color: var(--lobby-ink);
+  font-size: 20px;
+  font-weight: 1000;
   letter-spacing: 0.15em;
-  color: #343b2b;
+  line-height: 1.2;
 }
 
 .lobby-copy-btns {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .lobby-copy-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 7px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(165, 172, 138, 0.4);
-  background: #ffffff;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 2px solid var(--lobby-ink);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--lobby-ink);
   font-size: 12px;
-  font-weight: 500;
-  color: #626b4f;
+  font-weight: 800;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .lobby-copy-btn:hover {
-  background: #e8ebdd;
-  border-color: #626b4f;
-}
-
-.lobby-header-right {
-  display: flex;
-  align-items: center;
-  gap: 14px;
+  transform: translateY(-2px);
+  box-shadow: 2px 2px 0 var(--lobby-ink);
 }
 
 .lobby-connection {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 12px;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 2px solid var(--lobby-ink);
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 900;
 }
 
 .lobby-connection.connected {
-  color: #75885b;
-  background: rgba(117, 136, 91, 0.12);
-  border: 1px solid rgba(117, 136, 91, 0.25);
+  color: #173d32;
+  background: var(--lobby-green);
 }
 
 .lobby-connection.disconnected {
-  color: #b75c4c;
-  background: rgba(183, 92, 76, 0.1);
-  border: 1px solid rgba(183, 92, 76, 0.25);
+  color: #772d28;
+  background: var(--lobby-pink);
 }
 
 .lobby-leave-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 9px 14px;
+  border: 2px solid var(--lobby-ink);
+  border-radius: 11px;
+  background: var(--lobby-coral);
+  color: var(--lobby-ink);
   font-size: 12px;
-  padding: 7px 14px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
+
+.lobby-leave-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 3px 3px 0 var(--lobby-ink);
+}
+
+/* ERROR MESSAGE */
 
 .lobby-error-banner {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 28px;
-  background: rgba(183, 92, 76, 0.08);
-  color: #b75c4c;
+  gap: 9px;
+  margin: 16px 28px 0;
+  padding: 12px 15px;
+  border: 2px solid #a93232;
+  border-radius: 12px;
+  background: #ffe5df;
+  color: #8d2929;
   font-size: 13px;
+  font-weight: 750;
 }
+
+/* MAIN LAYOUT */
 
 .lobby-main {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
   gap: 24px;
-  padding: 28px;
-  max-width: 1100px;
   width: 100%;
+  max-width: 1240px;
   margin: 0 auto;
+  padding: 28px;
 }
 
 .lobby-panel {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   padding: 22px;
-  animation: fadeIn 0.4s ease-out both;
+  border: var(--lobby-border);
+  border-radius: 20px;
+  background: #fffdf7;
+  box-shadow: 6px 6px 0 var(--lobby-ink);
+  animation: lobbyPopIn 0.35s ease-out both;
+}
+
+.lobby-settings-panel {
+  background: #fffdf7;
+}
+
+.lobby-players-panel {
+  background: #f1fffc;
+  animation-delay: 0.07s;
 }
 
 .lobby-panel-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
-  color: #343b2b;
+  gap: 9px;
+  margin-bottom: 22px;
+  color: var(--lobby-ink);
+}
+
+.lobby-panel-header > svg {
+  flex-shrink: 0;
+  box-sizing: content-box;
+  padding: 8px;
+  border: 2px solid var(--lobby-ink);
+  border-radius: 10px;
+  background: var(--lobby-yellow);
+}
+
+.lobby-players-panel .lobby-panel-header > svg {
+  background: var(--lobby-teal);
 }
 
 .lobby-panel-header h2 {
-  font-size: 16px;
-  font-weight: 700;
   margin: 0;
+  font-size: 19px;
+  font-weight: 1000;
+  letter-spacing: -0.04em;
 }
 
 .lobby-player-count {
   margin-left: auto;
-  font-size: 13px;
-  font-weight: 600;
-  color: #77796e;
-  padding: 3px 10px;
+  padding: 5px 10px;
+  border: 2px solid var(--lobby-ink);
   border-radius: 999px;
-  background: #e8ebdd;
+  background: var(--lobby-yellow);
+  color: var(--lobby-ink);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
-/* SETTINGS */
+/* ROOM SETTINGS */
+
 .lobby-settings-list {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 0;
+}
+
+.lobby-settings-list > .lobby-setting-row {
+  padding: 16px 0;
+  border-bottom: 2px dashed #ded8c9;
+}
+
+.lobby-settings-list > .lobby-setting-row:first-child {
+  padding-top: 0;
+}
+
+.lobby-settings-list > .lobby-setting-row:last-child {
+  border-bottom: 0;
 }
 
 .lobby-setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
 }
 
+/* The category row currently sits inside the Word Choices markup.
+   These selectors make that existing structure wrap cleanly. */
 .lobby-setting-info {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
+  min-width: 0;
+}
+
+.lobby-setting-info > div {
+  min-width: 0;
 }
 
 .lobby-setting-icon {
-  color: #a5ac8a;
   flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--lobby-ink);
 }
 
 .lobby-setting-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #292d25;
   display: block;
+  margin-bottom: 3px;
+  color: var(--lobby-ink);
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .lobby-setting-desc {
-  font-size: 11px;
-  color: #77796e;
   display: block;
+  color: var(--lobby-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+/* Category controls are nested in the Word Choices row in the
+   existing JSX. Give the nested row its own full-width line. */
+.lobby-setting-info .lobby-setting-row {
+  width: 100%;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px dashed #ded8c9;
 }
 
 .lobby-setting-controls {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  justify-content: flex-end;
   flex-wrap: wrap;
+  gap: 5px;
 }
 
 .lobby-setting-chip {
-  padding: 5px 11px;
-  border-radius: 8px;
-  border: 1px solid rgba(165, 172, 138, 0.3);
-  background: #ffffff;
+  min-width: 35px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 2px solid var(--lobby-ink);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--lobby-ink);
   font-size: 12px;
-  font-weight: 600;
-  color: #77796e;
+  font-weight: 900;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: transform 0.13s ease, box-shadow 0.13s ease,
+    background-color 0.13s ease;
 }
 
 .lobby-setting-chip:hover:not(:disabled) {
-  border-color: #626b4f;
-  color: #343b2b;
+  transform: translateY(-2px);
+  box-shadow: 2px 2px 0 var(--lobby-ink);
 }
 
 .lobby-setting-chip.active {
-  background: #343b2b;
-  border-color: #343b2b;
-  color: #faf9f5;
+  background: var(--lobby-purple);
+  color: var(--lobby-ink);
+  box-shadow: 2px 2px 0 var(--lobby-ink);
 }
 
 .lobby-setting-chip:disabled {
-  opacity: 0.5;
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.lobby-category-select {
+  width: 100%;
+  max-width: 190px;
+  min-height: 38px;
+  padding: 8px 30px 8px 10px;
+  border: 2px solid var(--lobby-ink);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--lobby-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.lobby-category-select:disabled {
+  opacity: 0.72;
   cursor: not-allowed;
 }
 
 .lobby-settings-notice {
-  margin-top: 20px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: #e8ebdd;
+  margin-top: 16px;
+  padding: 11px 13px;
+  border: 2px dashed var(--lobby-ink);
+  border-radius: 12px;
+  background: #fff2c6;
+  color: var(--lobby-ink);
   font-size: 12px;
-  color: #77796e;
+  font-weight: 750;
   text-align: center;
 }
 
 /* PLAYERS */
+
 .lobby-players-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
   gap: 12px;
   flex: 1;
 }
@@ -254,142 +419,247 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
-  color: #77796e;
+  min-height: 150px;
+  padding: 24px;
+  border: 2px dashed #b9b6c6;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--lobby-muted);
   font-size: 13px;
+  font-weight: 700;
   text-align: center;
 }
 
 .lobby-player-card {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(165, 172, 138, 0.25);
-  background: #faf9f5;
-  transition: all 0.2s;
-  animation: slideIn 0.3s ease-out both;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 2px solid var(--lobby-ink);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 3px 3px 0 var(--lobby-ink);
+  animation: lobbyPopIn 0.25s ease-out both;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.lobby-player-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 4px 5px 0 var(--lobby-ink);
 }
 
 .lobby-player-current {
-  border-color: #626b4f;
-  background: #e8ebdd;
+  background: #fff0c1;
+  border-color: var(--lobby-ink);
 }
 
 .lobby-player-avatar {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  border-radius: 50%;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border: 2px solid var(--lobby-ink);
+  border-radius: 13px;
+  color: #fff;
   font-size: 13px;
-  font-weight: 700;
-  color: #faf9f5;
+  font-weight: 1000;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 .lobby-player-info {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
 }
 
 .lobby-player-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #292d25;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
+  color: var(--lobby-ink);
+  font-size: 13px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
 }
 
 .lobby-player-you {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: #626b4f;
-  color: #faf9f5;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 6px;
+  border: 1px solid var(--lobby-ink);
+  border-radius: 6px;
+  background: var(--lobby-yellow);
+  color: var(--lobby-ink);
+  font-size: 9px;
+  font-weight: 1000;
 }
 
 .lobby-player-badges {
   display: flex;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.lobby-host-badge,
+.lobby-ready-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border: 1px solid var(--lobby-ink);
+  border-radius: 7px;
+  color: var(--lobby-ink);
+  font-size: 9px;
+  font-weight: 900;
 }
 
 .lobby-host-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(212, 162, 58, 0.18);
-  color: #b89530;
+  background: var(--lobby-yellow);
 }
 
 .lobby-ready-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(117, 136, 91, 0.15);
-  color: #75885b;
+  background: var(--lobby-green);
 }
 
 .lobby-slots-remaining {
-  margin-top: 14px;
-  font-size: 12px;
-  color: #77796e;
+  margin-top: 16px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(78, 205, 196, 0.2);
+  color: var(--lobby-ink);
+  font-size: 11px;
+  font-weight: 850;
   text-align: center;
 }
 
-/* FOOTER */
+/* HOST PLAYER ACTIONS */
+
+.lobby-player-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.lobby-player-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 2px solid var(--lobby-ink);
+  border-radius: 8px;
+  color: var(--lobby-ink);
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.13s ease, box-shadow 0.13s ease;
+}
+
+.lobby-player-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 2px 2px 0 var(--lobby-ink);
+}
+
+.lobby-kick-btn {
+  background: #ffe2ad;
+}
+
+.lobby-ban-btn {
+  background: #ffc7c7;
+}
+
+/* FOOTER / START GAME */
+
 .lobby-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 28px;
-  border-top: 1px solid rgba(165, 172, 138, 0.25);
-  background: #ffffff;
+  gap: 16px;
+  padding: 17px 28px;
+  border-top: var(--lobby-border);
+  background: #fffdf7;
 }
 
 .lobby-footer-info {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #343b2b;
+  gap: 8px;
+  color: var(--lobby-ink);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.lobby-footer-info svg {
+  color: var(--lobby-ink);
 }
 
 .lobby-start-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 50px;
+  padding: 13px 30px;
+  border: 3px solid var(--lobby-ink);
+  border-radius: 14px;
+  background: var(--lobby-coral);
+  color: var(--lobby-ink);
+  box-shadow: 4px 4px 0 var(--lobby-ink);
   font-size: 15px;
-  padding: 14px 36px;
+  font-weight: 1000;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.lobby-start-btn:hover:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--lobby-ink);
 }
 
 .lobby-start-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .lobby-waiting {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 14px;
-  color: #77796e;
+  padding: 11px 15px;
+  border: 2px dashed var(--lobby-ink);
+  border-radius: 12px;
+  background: #f0eaff;
+  color: var(--lobby-ink);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .lobby-waiting-spinner {
-  color: #626b4f;
+  color: var(--lobby-ink);
+}
+
+@keyframes lobbyPopIn {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes spin {
@@ -402,92 +672,132 @@
   animation: spin 1s linear infinite;
 }
 
-@media (max-width: 768px) {
-  .lobby-main {
-    grid-template-columns: 1fr;
-    padding: 20px;
-  }
+/* RESPONSIVE */
 
+@media (max-width: 1050px) {
   .lobby-header {
-    flex-direction: column;
-    gap: 12px;
-    padding: 14px 20px;
+    align-items: flex-start;
   }
 
   .lobby-header-left {
-    flex-wrap: wrap;
-    justify-content: center;
+    gap: 9px;
+  }
+
+  .lobby-main {
+    gap: 18px;
+    padding: 22px;
+  }
+
+  .lobby-panel {
+    padding: 18px;
   }
 
   .lobby-players-grid {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 768px) {
+  .lobby-header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px 18px;
+  }
+
+  .lobby-header-left,
+  .lobby-header-right {
+    justify-content: space-between;
+  }
+
+  .lobby-main {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 18px;
+  }
+
+  .lobby-panel {
+    padding: 18px;
+  }
+
+  .lobby-players-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 
   .lobby-footer {
-    flex-direction: column;
-    gap: 12px;
-    padding: 14px 20px;
+    padding: 15px 18px;
+  }
+
+  .lobby-start-btn {
+    padding: 12px 22px;
   }
 }
 
-.lobby-category-select {
-  min-height: 38px;
-  padding: 8px 12px;
-  border: 1px solid #d6d9d0;
-  border-radius: 8px;
-  background: #fff;
-  color: inherit;
-  font: inherit;
-}
+@media (max-width: 520px) {
+  .lobby-header-left,
+  .lobby-header-right {
+    justify-content: flex-start;
+  }
 
-.lobby-category-select:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
+  .lobby-home-btn {
+    min-height: 38px;
+  }
 
-.lobby-player-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  flex-wrap: wrap;
-}
+  .lobby-code-value {
+    font-size: 17px;
+  }
 
-.lobby-player-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 7px 9px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
+  .lobby-copy-btn {
+    padding: 7px 9px;
+    font-size: 11px;
+  }
 
-.lobby-kick-btn {
-  color: #9a4b31;
-  background: #f8ece7;
-  border-color: #ead1c7;
-}
+  .lobby-error-banner {
+    margin: 12px 14px 0;
+  }
 
-.lobby-ban-btn {
-  color: #9f3030;
-  background: #f8e7e7;
-  border-color: #edcccc;
-}
+  .lobby-main {
+    gap: 18px;
+    padding: 14px;
+  }
 
-.lobby-kick-btn:hover {
-  background: #f0dcd4;
-}
+  .lobby-panel {
+    padding: 15px;
+    border-radius: 16px;
+    box-shadow: 4px 4px 0 var(--lobby-ink);
+  }
 
-.lobby-ban-btn:hover {
-  background: #efd1d1;
-}
+  .lobby-panel-header h2 {
+    font-size: 17px;
+  }
 
-@media (max-width: 480px) {
+  .lobby-setting-row {
+    align-items: flex-start;
+  }
+
+  .lobby-setting-info {
+    width: 100%;
+  }
+
+  .lobby-setting-controls {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .lobby-setting-info .lobby-setting-row {
+    align-items: flex-start;
+  }
+
+  .lobby-category-select {
+    max-width: 100%;
+  }
+
+  .lobby-players-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lobby-player-card {
+    gap: 9px;
+  }
+
   .lobby-player-actions {
     width: 100%;
     margin-left: 0;
@@ -495,6 +805,40 @@
 
   .lobby-player-action {
     flex: 1;
-    min-height: 36px;
+  }
+
+  .lobby-footer {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px;
+  }
+
+  .lobby-footer-info {
+    justify-content: center;
+  }
+
+  .lobby-start-btn {
+    width: 100%;
+  }
+
+  .lobby-waiting {
+    justify-content: center;
+    text-align: center;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .lobby-panel,
+  .lobby-player-card,
+  .animate-spin {
+    animation: none;
+  }
+
+  .lobby-page *,
+  .lobby-page *::before,
+  .lobby-page *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
